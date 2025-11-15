@@ -5,9 +5,9 @@ struct LoginView: View {
     @State private var showPassword = false
     @State private var showError = false
 
-    // Remove onLogin: (() -> Void)? = nil as it seems redundant with onLoginSuccess
+    // Navigation closures
     var onSignup: (() -> Void)? = nil
-    // This closure will be called when login is successful
+    var onForgotPassword: (() -> Void)? = nil  // Add this line
     var onLoginSuccess: (UserRole) -> Void
 
     enum UserRole {
@@ -15,8 +15,6 @@ struct LoginView: View {
     }
 
     var body: some View {
-        // ... (Body content remains the same)
-
         let gradient = LinearGradient(
             colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
             startPoint: .top,
@@ -54,7 +52,6 @@ struct LoginView: View {
                     .padding(.bottom, 24)
 
                 // MARK: Email
-                // CustomTextField and CustomSecureField must be available
                 CustomTextField(icon: "envelope.fill",
                                  placeholder: "Email",
                                  text: $viewModel.email)
@@ -64,6 +61,17 @@ struct LoginView: View {
                                  placeholder: "Password",
                                  text: $viewModel.password,
                                  showPassword: $showPassword)
+
+                // MARK: Forgot Password
+                HStack {
+                    Spacer()
+                    Button(action: { onForgotPassword?() }) {
+                        Text("Forgot Password?")
+                            .foregroundColor(Color(hex: 0xF59E0B))
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                }
+                .padding(.top, 4)
 
                 // MARK: Error
                 if let error = viewModel.errorMessage {
@@ -129,7 +137,7 @@ struct LoginView: View {
                 default:
                     userRole = .user
                 }
-                onLoginSuccess(userRole) // <-- call the closure here
+                onLoginSuccess(userRole)
             }
         }
     }

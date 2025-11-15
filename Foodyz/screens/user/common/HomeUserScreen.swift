@@ -30,61 +30,16 @@ extension Color {
 
 // MARK: - HomeUserScreen
 struct HomeUserScreen: View {
-    @State private var showingNotifications = false
     @State private var showingDrawer = false
-    @State private var selectedFilter: String = "All"
     @State private var currentRoute: String = "home"
-
-    let filters = ["All", "Spicy", "Healthy", "Sweet"]
     
     var onNavigateDrawer: ((String) -> Void)? = nil
 
-
     var body: some View {
         ZStack {
-            // Main content
-            VStack(spacing: 0) {
-                // Top App Bar
-                TopAppBarView(
-                    showNotifications: $showingNotifications,
-                    openDrawer: { withAnimation { showingDrawer = true } },
-                    onSearchClick: { print("Search Clicked") },
-                    onProfileClick: { print("Profile Clicked") }
-                )
-
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Categories
-                        HStack(spacing: 16) {
-                            CategoryCard(icon: "bag.fill", title: "Takeaway", subtitle: "Pick up your food", color: HomeColors.primary)
-                            CategoryCard(icon: "gift.fill", title: "Daily Deals", subtitle: "Up to 50% off", color: Color(hex: "#F59E0B"))
-                        }
-                        .padding(.horizontal, 16)
-
-                        // Filter Chips
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(filters, id: \.self) { filter in
-                                    FilterChip(
-                                        label: filter,
-                                        isSelected: selectedFilter == filter,
-                                        icon: filterIcon(for: filter)
-                                    )
-                                    .onTapGesture { selectedFilter = filter }
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-
-                        // Posts screen
-                        PostsScreen()
-                            .padding(.bottom, 30)
-                    }
-                    .padding(.top, 16)
-                }
-                .background(HomeColors.background)
-            }
-            .background(HomeColors.background.ignoresSafeArea())
+            // Utiliser MainTabView comme écran principal
+            MainTabView()
+                .navigationBarBackButtonHidden(true)
 
             // Drawer overlay
             if showingDrawer {
@@ -107,15 +62,13 @@ struct HomeUserScreen: View {
                 .animation(.easeInOut, value: showingDrawer)
             }
         }
-    }
-
-    // MARK: - Helpers
-    private func filterIcon(for filter: String) -> String? {
-        switch filter {
-        case "Spicy": return "flame.fill"
-        case "Healthy": return "leaf.fill"
-        case "Sweet": return "birthday.cake.fill"
-        default: return nil
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: { withAnimation { showingDrawer = true } }) {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundColor(.primary)
+                }
+            }
         }
     }
 }
@@ -170,7 +123,8 @@ struct FilterChip: View {
 // MARK: - Preview
 struct HomeUserScreen_Previews: PreviewProvider {
     static var previews: some View {
-        HomeUserScreen()
-            .previewLayout(.sizeThatFits)
+        NavigationStack {
+            HomeUserScreen(onNavigateDrawer: { _ in })
+        }
     }
 }

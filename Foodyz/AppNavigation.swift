@@ -1,12 +1,22 @@
+//
+//  AppNavigation.swift
+//  Foodyz
+//
+//  Created by Mouscou Mohamed khalil on 15/11/2025.
+//
+
 import SwiftUI
 
 enum Screen: Hashable {
     case splash
     case login
     case userSignup
+    case proSignup
+    case forgotPassword
+    case verifyOtp(email: String)
+    case resetPassword(email: String, resetToken: String)
     case homeUser
     case homeProfessional
-    case proSignup // <-- New case for Professional Signup
 }
 
 struct AppNavigation: View {
@@ -14,7 +24,6 @@ struct AppNavigation: View {
     
     var body: some View {
         NavigationStack(path: $path) {
-            
             // Root view — Splash screen
             SplashView(onFinished: {
                 path.append(Screen.login)
@@ -23,14 +32,21 @@ struct AppNavigation: View {
             .navigationDestination(for: Screen.self) { screen in
                 switch screen {
                 case .splash:
-                    SplashView(onFinished: { path.append(Screen.login) })
-
+                    SplashView(onFinished: {
+                        path.append(Screen.login)
+                    })
+                    
                 case .login:
                     LoginView(
-                        onSignup: { path.append(Screen.userSignup) },
+                        onSignup: {
+                            path.append(Screen.userSignup)
+                        },
+                        onForgotPassword: {
+                            path.append(Screen.forgotPassword)
+                        },
                         onLoginSuccess: { role in
                             path.removeLast(path.count)
-                            switch role { // <-- match enum, not string
+                            switch role {
                             case .user:
                                 path.append(Screen.homeUser)
                             case .professional:
@@ -38,11 +54,27 @@ struct AppNavigation: View {
                             }
                         }
                     )
-
-
+                    
                 case .userSignup:
-                    UserSignupView(onFinishSignup: { path.removeLast() })
-
+                    UserSignupView(onFinishSignup: {
+                        path.removeLast()
+                    })
+                    
+                case .proSignup:
+                    ProSignupView(onFinish: {
+                        path.removeLast(path.count)
+                        path.append(Screen.homeUser)
+                    })
+                    
+                case .forgotPassword:
+                    ForgotPasswordView()
+                    
+                case .verifyOtp(let email):
+                    VerifyOtpView(email: email)
+                    
+                case .resetPassword(let email, let resetToken):
+                    ResetPasswordView(email: email, resetToken: resetToken)
+                    
                 case .homeUser:
                     HomeUserScreen(
                         onNavigateDrawer: { route in
@@ -52,22 +84,24 @@ struct AppNavigation: View {
                             case "home":
                                 path.removeLast(path.count)
                                 path.append(Screen.homeUser)
+                            case "logout":
+                                // Logout logic
+                                path.removeLast(path.count)
+                                path.append(Screen.login)
                             default:
                                 print("Navigate to \(route)")
                             }
                         }
                     )
-
-                case .proSignup:
-                    ProSignupView(onFinish: {
-                        path.removeLast(path.count)
-                        path.append(Screen.homeUser)
-                    })
-
+                    
                 case .homeProfessional:
                     HomeProfessionalView()
                 }
             }
         }
     }
+}
+
+#Preview {
+    AppNavigation()
 }
