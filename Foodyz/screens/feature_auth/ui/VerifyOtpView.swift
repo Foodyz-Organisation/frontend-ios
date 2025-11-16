@@ -18,46 +18,52 @@ struct VerifyOtpView: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
         ZStack {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.white]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            gradient.ignoresSafeArea()
             
             ScrollView {
                 VStack(spacing: 24) {
                     Spacer()
                         .frame(height: 40)
                     
-                    // Icon with animation
+                    // Icon avec animation
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.1))
+                            .fill(RadialGradient(
+                                gradient: Gradient(colors: [Color(hex: 0xFFECB3), Color(hex: 0xFFC107)]),
+                                center: .center,
+                                startRadius: 10,
+                                endRadius: 80
+                            ))
                             .frame(width: 120, height: 120)
                         
                         Image(systemName: "lock.shield.fill")
                             .resizable()
-                            .frame(width: 80, height: 80)
-                            .foregroundColor(.blue)
+                            .frame(width: 70, height: 70)
+                            .foregroundColor(Color(hex: 0x5F370E))
                     }
+                    .shadow(color: Color(hex: 0xFFC107).opacity(0.3), radius: 20, x: 0, y: 10)
                     
                     // Title
                     Text("Vérification")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(hex: 0xB87300))
                     
                     // Subtitle
                     VStack(spacing: 8) {
                         Text("Nous avons envoyé un code à 6 chiffres à")
                             .font(.body)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(hex: 0x6B7280))
                         Text(email)
                             .font(.body)
                             .fontWeight(.semibold)
-                            .foregroundColor(.blue)
+                            .foregroundColor(Color(hex: 0xF59E0B))
                     }
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
@@ -69,7 +75,7 @@ struct VerifyOtpView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Image(systemName: "number.circle.fill")
-                                .foregroundColor(.blue)
+                                .foregroundColor(Color(hex: 0xF59E0B))
                                 .frame(width: 24)
                             
                             TextField("Code à 6 chiffres", text: $viewModel.otp)
@@ -77,17 +83,19 @@ struct VerifyOtpView: View {
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
                                 .multilineTextAlignment(.center)
                                 .disabled(viewModel.uiState == .loading)
+                                .foregroundColor(Color(hex: 0x5F370E))
                                 .onChange(of: viewModel.otp) { newValue in
                                     viewModel.otp = viewModel.formatOtpInput(newValue)
                                 }
                         }
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 16)
                                 .stroke(
-                                    viewModel.isOtpValid ? Color.green : (viewModel.otp.isEmpty ? Color.clear : Color.orange),
+                                    viewModel.isOtpValid ? Color(hex: 0x4CAF50) : (viewModel.otp.isEmpty ? Color.clear : Color(hex: 0xF59E0B)),
                                     lineWidth: 2
                                 )
                         )
@@ -96,18 +104,19 @@ struct VerifyOtpView: View {
                         if !viewModel.otp.isEmpty {
                             HStack {
                                 Image(systemName: viewModel.isOtpValid ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                                    .foregroundColor(viewModel.isOtpValid ? .green : .orange)
+                                    .foregroundColor(viewModel.isOtpValid ? Color(hex: 0x4CAF50) : Color(hex: 0xF59E0B))
                                 
                                 if viewModel.otp.count != 6 {
                                     Text("Le code doit contenir 6 chiffres (\(viewModel.otp.count)/6)")
                                         .font(.caption)
-                                        .foregroundColor(.orange)
+                                        .foregroundColor(Color(hex: 0xF59E0B))
                                 } else if viewModel.isOtpValid {
                                     Text("Code valide")
                                         .font(.caption)
-                                        .foregroundColor(.green)
+                                        .foregroundColor(Color(hex: 0x4CAF50))
                                 }
                             }
+                            .padding(.leading, 4)
                             .animation(.easeInOut, value: viewModel.otp)
                         }
                         
@@ -121,7 +130,7 @@ struct VerifyOtpView: View {
                                         .cornerRadius(2)
                                     
                                     Rectangle()
-                                        .fill(Color.blue)
+                                        .fill(Color(hex: 0xF59E0B))
                                         .frame(width: geometry.size.width * (Double(viewModel.otp.count) / 6.0), height: 4)
                                         .cornerRadius(2)
                                         .animation(.easeInOut, value: viewModel.otp.count)
@@ -137,15 +146,18 @@ struct VerifyOtpView: View {
                         print("Vérification OTP: \(viewModel.otp) pour email: \(email)")
                         viewModel.verifyOtp(email: email)
                     }) {
-                        HStack {
+                        HStack(spacing: 12) {
                             if case .loading = viewModel.uiState {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: 0x5F370E)))
                                     .scaleEffect(0.8)
                                 Text("Vérification...")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                             } else {
                                 Image(systemName: "checkmark.shield.fill")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                                 Text("Vérifier le code")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                             }
                         }
                         .fontWeight(.semibold)
@@ -154,19 +166,18 @@ struct VerifyOtpView: View {
                         .background(
                             viewModel.canVerify
                                 ? LinearGradient(
-                                    gradient: Gradient(colors: [Color.blue, Color.blue.opacity(0.8)]),
+                                    colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                   )
                                 : LinearGradient(
-                                    gradient: Gradient(colors: [Color.gray, Color.gray]),
+                                    colors: [Color(hex: 0xE0E0E0), Color(hex: 0xBDBDBD)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                   )
                         )
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                        .shadow(color: viewModel.canVerify ? Color.blue.opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
+                        .cornerRadius(18)
+                        .shadow(color: viewModel.canVerify ? Color(hex: 0xF59E0B).opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
                     }
                     .disabled(!viewModel.canVerify)
                     .padding(.horizontal, 24)
@@ -181,7 +192,7 @@ struct VerifyOtpView: View {
                             Image(systemName: "arrow.clockwise")
                             Text("Renvoyer le code")
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color(hex: 0xF59E0B))
                         .fontWeight(.medium)
                     }
                     .disabled(viewModel.uiState == .loading)
@@ -195,7 +206,7 @@ struct VerifyOtpView: View {
                             Image(systemName: "arrow.left")
                             Text("Retour")
                         }
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(hex: 0x6B7280))
                     }
                     .disabled(viewModel.uiState == .loading)
                     

@@ -16,41 +16,47 @@ struct ForgotPasswordView: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
         ZStack {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.white]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            gradient.ignoresSafeArea()
             
             ScrollView {
                 VStack(spacing: 24) {
                     Spacer()
                         .frame(height: 40)
                     
-                    // Icon
+                    // Icon avec animation
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.1))
+                            .fill(RadialGradient(
+                                gradient: Gradient(colors: [Color(hex: 0xFFECB3), Color(hex: 0xFFC107)]),
+                                center: .center,
+                                startRadius: 10,
+                                endRadius: 80
+                            ))
                             .frame(width: 120, height: 120)
                         
                         Image(systemName: "envelope.circle.fill")
                             .resizable()
-                            .frame(width: 80, height: 80)
-                            .foregroundColor(.blue)
+                            .frame(width: 70, height: 70)
+                            .foregroundColor(Color(hex: 0x5F370E))
                     }
+                    .shadow(color: Color(hex: 0xFFC107).opacity(0.3), radius: 20, x: 0, y: 10)
                     
                     // Title
                     Text("Mot de passe oublié ?")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(hex: 0xB87300))
                     
                     // Subtitle
                     Text("Entrez votre adresse e-mail et nous vous enverrons un code de vérification")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(hex: 0x6B7280))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                     
@@ -60,8 +66,8 @@ struct ForgotPasswordView: View {
                     // Email TextField
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Image(systemName: "envelope")
-                                .foregroundColor(.gray)
+                            Image(systemName: "envelope.fill")
+                                .foregroundColor(Color(hex: 0xF59E0B))
                                 .frame(width: 24)
                             
                             TextField("Adresse e-mail", text: $viewModel.email)
@@ -69,13 +75,15 @@ struct ForgotPasswordView: View {
                                 .autocapitalization(.none)
                                 .autocorrectionDisabled()
                                 .disabled(viewModel.uiState == .loading)
+                                .foregroundColor(Color(hex: 0x5F370E))
                         }
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(viewModel.isEmailValid && !viewModel.email.isEmpty ? Color.green : Color.clear, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(viewModel.isEmailValid && !viewModel.email.isEmpty ? Color(hex: 0x4CAF50) : Color.clear, lineWidth: 2)
                         )
                         
                         if !viewModel.email.isEmpty && !viewModel.isEmailValid {
@@ -86,6 +94,7 @@ struct ForgotPasswordView: View {
                                     .font(.caption)
                                     .foregroundColor(.red)
                             }
+                            .padding(.leading, 4)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -94,15 +103,18 @@ struct ForgotPasswordView: View {
                     Button(action: {
                         viewModel.sendOtp()
                     }) {
-                        HStack {
+                        HStack(spacing: 12) {
                             if case .loading = viewModel.uiState {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: 0x5F370E)))
                                     .scaleEffect(0.8)
                                 Text("Envoi en cours...")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                             } else {
                                 Image(systemName: "paperplane.fill")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                                 Text("Envoyer le code")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                             }
                         }
                         .fontWeight(.semibold)
@@ -111,19 +123,18 @@ struct ForgotPasswordView: View {
                         .background(
                             viewModel.canSendOtp
                                 ? LinearGradient(
-                                    gradient: Gradient(colors: [Color.blue, Color.blue.opacity(0.8)]),
+                                    colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                   )
                                 : LinearGradient(
-                                    gradient: Gradient(colors: [Color.gray, Color.gray]),
+                                    colors: [Color(hex: 0xE0E0E0), Color(hex: 0xBDBDBD)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                   )
                         )
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                        .shadow(color: viewModel.canSendOtp ? Color.blue.opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
+                        .cornerRadius(18)
+                        .shadow(color: viewModel.canSendOtp ? Color(hex: 0xF59E0B).opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
                     }
                     .disabled(!viewModel.canSendOtp)
                     .padding(.horizontal, 24)
@@ -137,7 +148,7 @@ struct ForgotPasswordView: View {
                             Image(systemName: "arrow.left")
                             Text("Retour à la connexion")
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color(hex: 0xF59E0B))
                         .fontWeight(.medium)
                     }
                     .disabled(viewModel.uiState == .loading)

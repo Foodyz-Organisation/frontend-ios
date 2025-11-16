@@ -20,14 +20,14 @@ struct ResetPasswordView: View {
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
         ZStack {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.white]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            gradient.ignoresSafeArea()
             
             ScrollView {
                 VStack(spacing: 24) {
@@ -37,23 +37,29 @@ struct ResetPasswordView: View {
                     // Icon
                     ZStack {
                         Circle()
-                            .fill(Color.blue.opacity(0.1))
+                            .fill(RadialGradient(
+                                gradient: Gradient(colors: [Color(hex: 0xFFECB3), Color(hex: 0xFFC107)]),
+                                center: .center,
+                                startRadius: 10,
+                                endRadius: 80
+                            ))
                             .frame(width: 120, height: 120)
                         
                         Image(systemName: "key.fill")
                             .resizable()
-                            .frame(width: 70, height: 70)
-                            .foregroundColor(.blue)
+                            .frame(width: 65, height: 65)
+                            .foregroundColor(Color(hex: 0x5F370E))
                     }
+                    .shadow(color: Color(hex: 0xFFC107).opacity(0.3), radius: 20, x: 0, y: 10)
                     
                     // Title
                     Text("Nouveau mot de passe")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(hex: 0xB87300))
                     
                     Text("Créez un mot de passe sécurisé pour votre compte")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(hex: 0x6B7280))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                     
@@ -64,7 +70,7 @@ struct ResetPasswordView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "lock.fill")
-                                .foregroundColor(.gray)
+                                .foregroundColor(Color(hex: 0xF59E0B))
                                 .frame(width: 24)
                             
                             Group {
@@ -77,21 +83,23 @@ struct ResetPasswordView: View {
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
                             .disabled(viewModel.uiState == .loading)
+                            .foregroundColor(Color(hex: 0x5F370E))
                             
                             Button(action: {
                                 showNewPassword.toggle()
                             }) {
                                 Image(systemName: showNewPassword ? "eye.fill" : "eye.slash.fill")
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(Color(hex: 0xF59E0B))
                             }
                         }
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 16)
                                 .stroke(
-                                    viewModel.isPasswordValid && !viewModel.newPassword.isEmpty ? Color.green : Color.clear,
+                                    viewModel.isPasswordValid && !viewModel.newPassword.isEmpty ? Color(hex: 0x4CAF50) : Color.clear,
                                     lineWidth: 2
                                 )
                         )
@@ -102,7 +110,7 @@ struct ResetPasswordView: View {
                                 HStack {
                                     Text("Force du mot de passe:")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Color(hex: 0x6B7280))
                                     
                                     Spacer()
                                     
@@ -136,7 +144,7 @@ struct ResetPasswordView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "lock.fill")
-                                .foregroundColor(.gray)
+                                .foregroundColor(Color(hex: 0xF59E0B))
                                 .frame(width: 24)
                             
                             Group {
@@ -149,21 +157,23 @@ struct ResetPasswordView: View {
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
                             .disabled(viewModel.uiState == .loading)
+                            .foregroundColor(Color(hex: 0x5F370E))
                             
                             Button(action: {
                                 showConfirmPassword.toggle()
                             }) {
                                 Image(systemName: showConfirmPassword ? "eye.fill" : "eye.slash.fill")
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(Color(hex: 0xF59E0B))
                             }
                         }
                         .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: 16)
                                 .stroke(
-                                    viewModel.passwordsMatch ? Color.green : (!viewModel.confirmPassword.isEmpty ? Color.red : Color.clear),
+                                    viewModel.passwordsMatch ? Color(hex: 0x4CAF50) : (!viewModel.confirmPassword.isEmpty ? Color.red : Color.clear),
                                     lineWidth: 2
                                 )
                         )
@@ -176,14 +186,16 @@ struct ResetPasswordView: View {
                                     .font(.caption)
                                     .foregroundColor(.red)
                             }
+                            .padding(.leading, 4)
                         } else if viewModel.passwordsMatch {
                             HStack {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
+                                    .foregroundColor(Color(hex: 0x4CAF50))
                                 Text("Les mots de passe correspondent")
                                     .font(.caption)
-                                    .foregroundColor(.green)
+                                    .foregroundColor(Color(hex: 0x4CAF50))
                             }
+                            .padding(.leading, 4)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -193,7 +205,7 @@ struct ResetPasswordView: View {
                         Text("Le mot de passe doit contenir :")
                             .font(.caption)
                             .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(hex: 0x6B7280))
                         
                         PasswordRequirementRow(
                             isValid: viewModel.isPasswordLengthValid,
@@ -221,23 +233,26 @@ struct ResetPasswordView: View {
                         )
                     }
                     .padding()
-                    .background(Color(.systemGray6).opacity(0.5))
-                    .cornerRadius(12)
+                    .background(Color.white.opacity(0.7))
+                    .cornerRadius(16)
                     .padding(.horizontal, 24)
                     
                     // Reset Password Button
                     Button(action: {
                         viewModel.resetPassword(email: email, resetToken: resetToken)
                     }) {
-                        HStack {
+                        HStack(spacing: 12) {
                             if case .loading = viewModel.uiState {
                                 ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .progressViewStyle(CircularProgressViewStyle(tint: Color(hex: 0x5F370E)))
                                     .scaleEffect(0.8)
                                 Text("Réinitialisation...")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                             } else {
                                 Image(systemName: "arrow.clockwise.circle.fill")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                                 Text("Réinitialiser le mot de passe")
+                                    .foregroundColor(Color(hex: 0x5F370E))
                             }
                         }
                         .fontWeight(.semibold)
@@ -246,19 +261,18 @@ struct ResetPasswordView: View {
                         .background(
                             viewModel.canSubmit
                                 ? LinearGradient(
-                                    gradient: Gradient(colors: [Color.blue, Color.blue.opacity(0.8)]),
+                                    colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                   )
                                 : LinearGradient(
-                                    gradient: Gradient(colors: [Color.gray, Color.gray]),
+                                    colors: [Color(hex: 0xE0E0E0), Color(hex: 0xBDBDBD)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                   )
                         )
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                        .shadow(color: viewModel.canSubmit ? Color.blue.opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
+                        .cornerRadius(18)
+                        .shadow(color: viewModel.canSubmit ? Color(hex: 0xF59E0B).opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
                     }
                     .disabled(!viewModel.canSubmit)
                     .padding(.horizontal, 24)
@@ -273,9 +287,7 @@ struct ResetPasswordView: View {
         .alert("Message", isPresented: $showAlert) {
             if case .success = viewModel.uiState {
                 Button("Aller à la connexion") {
-                    // Retour à la racine de navigation
                     presentationMode.wrappedValue.dismiss()
-                    // Vous devrez peut-être adapter selon votre système de navigation
                 }
             } else {
                 Button("OK", role: .cancel) {
@@ -317,12 +329,12 @@ struct PasswordRequirementRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: isValid ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(isValid ? .green : .gray)
+                .foregroundColor(isValid ? Color(hex: 0x4CAF50) : Color(hex: 0x9E9E9E))
                 .font(.caption)
             
             Text(text)
                 .font(.caption)
-                .foregroundColor(isValid ? .green : .secondary)
+                .foregroundColor(isValid ? Color(hex: 0x4CAF50) : Color(hex: 0x6B7280))
         }
         .animation(.easeInOut, value: isValid)
     }
