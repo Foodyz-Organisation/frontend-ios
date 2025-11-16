@@ -7,11 +7,11 @@ struct ReclamationDTO: Codable {
     var complaintType: String
     var description: String
     var image: String?
-    var nomClient: String
-    var emailClient: String
+    // ✅ Plus besoin de nomClient et emailClient dans le DTO envoyé
+    // Le backend les récupère automatiquement du token JWT
 }
 
-// MARK: - API Response (pour gérer la réponse du backend)
+// MARK: - API Response
 struct ReclamationResponse: Codable {
     var message: String?
     var reclamation: ReclamationDTO?
@@ -23,16 +23,12 @@ class ReclamationAPI {
     static let shared = ReclamationAPI()
     
     // ⚠️ IMPORTANT: Changez cette URL selon votre configuration
-    // Si vous testez sur simulateur iOS: http://localhost:3000
-    // Si vous testez sur appareil réel: http://VOTRE_IP_LOCAL:3000
-    // Exemple: http://192.168.1.10:3000
     private let baseURL = "http://localhost:3000/reclamation"
     
     private init() {}
     
-    // MARK: - POST - Créer une réclamation
+    // MARK: - POST - Créer une réclamation (avec authentification)
     func createReclamation(_ reclamation: ReclamationDTO, completion: @escaping (Result<ReclamationDTO, Error>) -> Void) {
-        // 🔥 TEST: Ce message devrait TOUJOURS s'afficher
         print("🔥🔥🔥 FONCTION createReclamation APPELÉE 🔥🔥🔥")
         print("📍 URL du backend: \(baseURL)")
         
@@ -42,20 +38,32 @@ class ReclamationAPI {
             return
         }
         
+        // ✅ Récupérer le token d'authentification
+        guard let accessToken = TokenManager.shared.getAccessToken() else {
+            print("❌ Pas de token d'authentification trouvé")
+            completion(.failure(NSError(domain: "Not authenticated", code: 401, userInfo: [
+                NSLocalizedDescriptionKey: "Vous devez être connecté pour créer une réclamation"
+            ])))
+            return
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // ✅ Ajouter le token JWT dans le header Authorization
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 30
+        
+        print("🔑 Token utilisé (30 premiers caractères): \(String(accessToken.prefix(30)))...")
         
         // Encoder les données
         do {
             let encoder = JSONEncoder()
-            encoder.outputFormatting = .prettyPrinted // Pour le debug
+            encoder.outputFormatting = .prettyPrinted
             let jsonData = try encoder.encode(reclamation)
             request.httpBody = jsonData
             
-            // 📝 DEBUG: Afficher les données envoyées
             if let jsonString = String(data: jsonData, encoding: .utf8) {
                 print("📤 Données envoyées au backend:")
                 print(jsonString)
@@ -68,23 +76,33 @@ class ReclamationAPI {
         
         // Envoyer la requête
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            // Vérifier les erreurs réseau
             if let error = error {
                 print("❌ Erreur réseau: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
             
-            // Vérifier la réponse HTTP
             if let httpResponse = response as? HTTPURLResponse {
                 print("📥 Status Code: \(httpResponse.statusCode)")
                 
-                // Vérifier si la requête a réussi (200-299)
+                // Gérer le cas où le token est invalide ou expiré
+                if httpResponse.statusCode == 401 {
+                    print("🚫 Token invalide ou expiré")
+                    DispatchQueue.main.async {
+                        // Rediriger vers la page de login
+                        TokenManager.shared.clearAllData()
+                        NotificationCenter.default.post(name: NSNotification.Name("UserLoggedOut"), object: nil)
+                    }
+                    completion(.failure(NSError(domain: "Unauthorized", code: 401, userInfo: [
+                        NSLocalizedDescriptionKey: "Session expirée. Veuillez vous reconnecter."
+                    ])))
+                    return
+                }
+                
                 guard (200...299).contains(httpResponse.statusCode) else {
                     let errorMessage = "Erreur HTTP: \(httpResponse.statusCode)"
                     print("❌ \(errorMessage)")
                     
-                    // Afficher le contenu de la réponse pour debug
                     if let data = data, let responseString = String(data: data, encoding: .utf8) {
                         print("📥 Réponse du serveur: \(responseString)")
                     }
@@ -94,49 +112,42 @@ class ReclamationAPI {
                 }
             }
             
-            // Vérifier les données reçues
             guard let data = data else {
                 print("❌ Aucune donnée reçue du serveur")
                 completion(.failure(NSError(domain: "No data", code: -1, userInfo: nil)))
                 return
             }
             
-            // 📝 DEBUG: Afficher la réponse brute
             if let responseString = String(data: data, encoding: .utf8) {
                 print("📥 Réponse brute du serveur:")
                 print(responseString)
             }
             
-            // Décoder la réponse
             do {
                 let decoder = JSONDecoder()
                 
-                // Essayer de décoder comme ReclamationDTO directement
                 if let createdReclamation = try? decoder.decode(ReclamationDTO.self, from: data) {
                     print("✅ Réclamation créée avec succès!")
                     completion(.success(createdReclamation))
                     return
                 }
                 
-                // Sinon, essayer comme ReclamationResponse
                 if let response = try? decoder.decode(ReclamationResponse.self, from: data) {
                     if let createdReclamation = response.reclamation {
                         print("✅ Réclamation créée avec succès!")
                         completion(.success(createdReclamation))
                     } else {
                         print("✅ Succès mais pas de réclamation retournée")
-                        completion(.success(reclamation)) // Retourner l'original
+                        completion(.success(reclamation))
                     }
                     return
                 }
                 
-                // Si aucun décodage ne fonctionne
                 print("✅ Requête réussie (pas de décodage nécessaire)")
                 completion(.success(reclamation))
                 
             } catch {
                 print("❌ Erreur de décodage: \(error.localizedDescription)")
-                // Même si le décodage échoue, si le code HTTP est 200-299, considérer comme succès
                 completion(.success(reclamation))
             }
         }
@@ -144,7 +155,7 @@ class ReclamationAPI {
         task.resume()
     }
     
-    // MARK: - GET - Récupérer toutes les réclamations
+    // MARK: - GET - Récupérer toutes les réclamations (avec authentification)
     func getReclamations(completion: @escaping (Result<[ReclamationDTO], Error>) -> Void) {
         guard let url = URL(string: baseURL) else {
             print("❌ URL invalide: \(baseURL)")
@@ -152,12 +163,17 @@ class ReclamationAPI {
             return
         }
         
+        guard let accessToken = TokenManager.shared.getAccessToken() else {
+            print("❌ Pas de token d'authentification")
+            completion(.failure(NSError(domain: "Not authenticated", code: 401, userInfo: nil)))
+            return
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 30
-        
-        // Pour éviter le cache
         request.cachePolicy = .reloadIgnoringLocalCacheData
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
@@ -169,6 +185,15 @@ class ReclamationAPI {
             
             if let httpResponse = response as? HTTPURLResponse {
                 print("📥 GET Status Code: \(httpResponse.statusCode)")
+                
+                if httpResponse.statusCode == 401 {
+                    DispatchQueue.main.async {
+                        TokenManager.shared.clearAllData()
+                        NotificationCenter.default.post(name: NSNotification.Name("UserLoggedOut"), object: nil)
+                    }
+                    completion(.failure(NSError(domain: "Unauthorized", code: 401, userInfo: nil)))
+                    return
+                }
             }
             
             guard let data = data else {
@@ -177,7 +202,6 @@ class ReclamationAPI {
                 return
             }
             
-            // 📝 DEBUG: Afficher la réponse
             if let responseString = String(data: data, encoding: .utf8) {
                 print("📥 GET Réponse:")
                 print(responseString)
@@ -197,7 +221,7 @@ class ReclamationAPI {
         task.resume()
     }
     
-    // MARK: - GET - Récupérer une réclamation par ID
+    // MARK: - GET - Récupérer une réclamation par ID (avec authentification)
     func getReclamationById(_ id: String, completion: @escaping (Result<ReclamationDTO, Error>) -> Void) {
         let urlString = "\(baseURL)/\(id)"
         guard let url = URL(string: urlString) else {
@@ -205,13 +229,28 @@ class ReclamationAPI {
             return
         }
         
+        guard let accessToken = TokenManager.shared.getAccessToken() else {
+            completion(.failure(NSError(domain: "Not authenticated", code: 401, userInfo: nil)))
+            return
+        }
+        
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.cachePolicy = .reloadIgnoringLocalCacheData
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 completion(.failure(error))
+                return
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 401 {
+                DispatchQueue.main.async {
+                    TokenManager.shared.clearAllData()
+                    NotificationCenter.default.post(name: NSNotification.Name("UserLoggedOut"), object: nil)
+                }
+                completion(.failure(NSError(domain: "Unauthorized", code: 401, userInfo: nil)))
                 return
             }
             

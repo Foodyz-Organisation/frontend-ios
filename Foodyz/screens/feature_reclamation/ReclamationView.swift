@@ -16,7 +16,9 @@ struct ReclamationView: View {
     @State private var selectedPhotos: [UIImage] = []
     @State private var showImagePicker = false
     @State private var showToast = false
+    @State private var toastMessage = "Complaint submitted"
     @State private var photoPickerItems: [PhotosPickerItem] = []
+    @State private var showLoginAlert = false
     
     private var isValid: Bool {
         !complaintType.isEmpty &&
@@ -108,7 +110,12 @@ struct ReclamationView: View {
                 }
             }
         }
-        .overlay(ToastView(message: "Complaint submitted", isShowing: $showToast))
+        .overlay(ToastView(message: toastMessage, isShowing: $showToast))
+        .alert("Non authentifié", isPresented: $showLoginAlert) {
+            Button("OK") {}
+        } message: {
+            Text("Vous devez être connecté pour créer une réclamation. Veuillez vous reconnecter.")
+        }
     }
     
     private func submitComplaint() {
@@ -119,27 +126,37 @@ struct ReclamationView: View {
         print("📋 commandeConcernee = \(commandeConcernee)")
         print("📋 agree = \(agree)")
         
+        // ✅ Vérifier que l'utilisateur est authentifié
+        guard TokenManager.shared.isLoggedIn() else {
+            print("❌ Utilisateur non authentifié")
+            showLoginAlert = true
+            return
+        }
+        
+        // ✅ Afficher les informations de l'utilisateur connecté
+        if let userName = TokenManager.shared.getUserName() {
+            print("👤 Utilisateur connecté: \(userName)")
+        }
+        if let userEmail = TokenManager.shared.getUserEmail() {
+            print("📧 Email: \(userEmail)")
+        }
+        
         if isValid {
             print("✅ Validation OK, création du DTO...")
             
-            let nomClient = "Ben Ghorbel"
-            let emailClient = "john.doe@example.com"
+            // ✅ Le backend récupère automatiquement nomClient et emailClient du token JWT
+            // On n'envoie plus ces champs dans le DTO
             let imageURL = selectedPhotos.first != nil ? "https://example.com/photo.jpg" : nil
-            
-            print("👤 nomClient: \(nomClient)")
-            print("📧 emailClient: \(emailClient)")
             
             let dto = ReclamationDTO(
                 commandeConcernee: commandeConcernee,
                 complaintType: complaintType,
                 description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                image: imageURL,
-                nomClient: nomClient,
-                emailClient: emailClient
+                image: imageURL
             )
             
-            print("📦 DTO créé avec succès")
-            print("🚀 Appel de l'API...")
+            print("📦 DTO créé avec succès (sans nomClient/emailClient - récupérés du token)")
+            print("🚀 Appel de l'API avec authentification...")
             
             ReclamationAPI.shared.createReclamation(dto) { result in
                 print("📥 Réponse de l'API reçue")
@@ -148,10 +165,19 @@ struct ReclamationView: View {
                     switch result {
                     case .success:
                         print("✅ SUCCÈS - Réclamation enregistrée")
+                        toastMessage = "Réclamation créée avec succès!"
                         showToast = true
                         clearForm()
                     case .failure(let error):
                         print("❌ ERREUR - \(error.localizedDescription)")
+                        
+                        // Gérer les erreurs d'authentification
+                        if (error as NSError).code == 401 {
+                            showLoginAlert = true
+                        } else {
+                            toastMessage = "Erreur: \(error.localizedDescription)"
+                            showToast = true
+                        }
                     }
                 }
             }
@@ -174,3 +200,6 @@ struct ReclamationView: View {
         }
     }
 }
+
+// Note: BrandColors, FieldLabel, DropdownField, DescriptionField,
+// PhotosSection et ToastView sont définis dans ReclamationComponents.swift
