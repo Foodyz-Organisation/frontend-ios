@@ -23,7 +23,7 @@ class ReclamationAPI {
     static let shared = ReclamationAPI()
     
     // ⚠️ IMPORTANT: Changez cette URL selon votre configuration
-    private let baseURL = "http://localhost:3000/reclamation"
+    private let baseURL = "http://172.18.5.57:3000/reclamation"
     
     private init() {}
     
@@ -154,7 +154,91 @@ class ReclamationAPI {
         
         task.resume()
     }
-    
+    // MARK: - ✅ NOUVELLE MÉTHODE - GET - Récupérer MES réclamations
+        func getMyReclamations(completion: @escaping (Result<[ReclamationDTO], Error>) -> Void) {
+            // ✅ Utiliser le nouvel endpoint
+            let urlString = "\(baseURL)/my-reclamations"
+            
+            print("🔍 Récupération des réclamations de l'utilisateur...")
+            print("📍 URL: \(urlString)")
+            
+            guard let url = URL(string: urlString) else {
+                print("❌ URL invalide: \(urlString)")
+                completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
+                return
+            }
+            
+            guard let accessToken = TokenManager.shared.getAccessToken() else {
+                print("❌ Pas de token d'authentification")
+                completion(.failure(NSError(domain: "Not authenticated", code: 401, userInfo: [
+                    NSLocalizedDescriptionKey: "Vous devez être connecté"
+                ])))
+                return
+            }
+            
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 30
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            
+            print("🔑 Token utilisé (30 premiers caractères): \(String(accessToken.prefix(30)))...")
+            
+            let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    print("❌ Erreur réseau GET: \(error.localizedDescription)")
+                    completion(.failure(error))
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("📥 GET Status Code: \(httpResponse.statusCode)")
+                    
+                    if httpResponse.statusCode == 401 {
+                        print("🚫 Token invalide ou expiré")
+                        DispatchQueue.main.async {
+                            TokenManager.shared.clearAllData()
+                            NotificationCenter.default.post(name: NSNotification.Name("UserLoggedOut"), object: nil)
+                        }
+                        completion(.failure(NSError(domain: "Unauthorized", code: 401, userInfo: [
+                            NSLocalizedDescriptionKey: "Session expirée. Veuillez vous reconnecter."
+                        ])))
+                        return
+                    }
+                    
+                    guard (200...299).contains(httpResponse.statusCode) else {
+                        print("❌ Erreur HTTP: \(httpResponse.statusCode)")
+                        completion(.failure(NSError(domain: "HTTP Error", code: httpResponse.statusCode, userInfo: nil)))
+                        return
+                    }
+                }
+                
+                guard let data = data else {
+                    print("❌ Aucune donnée reçue")
+                    completion(.failure(NSError(domain: "No data", code: -1, userInfo: nil)))
+                    return
+                }
+                
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("📥 GET Réponse brute:")
+                    print(responseString)
+                }
+                
+                do {
+                    let decoder = JSONDecoder()
+                    let reclamations = try decoder.decode([ReclamationDTO].self, from: data)
+                    print("✅ \(reclamations.count) réclamation(s) récupérée(s) pour cet utilisateur")
+                    completion(.success(reclamations))
+                } catch {
+                    print("❌ Erreur de décodage GET: \(error.localizedDescription)")
+                    completion(.failure(error))
+                }
+            }
+            
+            task.resume()
+        }
+        
     // MARK: - GET - Récupérer toutes les réclamations (avec authentification)
     func getReclamations(completion: @escaping (Result<[ReclamationDTO], Error>) -> Void) {
         guard let url = URL(string: baseURL) else {

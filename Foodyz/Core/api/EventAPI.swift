@@ -224,7 +224,7 @@ class EventAPI {
     // - /event (SINGULIER) - moins courant
     
     // 🔧 CHANGEZ CETTE LIGNE selon votre backend:
-    private let baseURL = "http://localhost:3000/events"  // ← Notez le 's' à la fin!
+    private let baseURL = "http://172.18.5.57:3000/events"  // ← Notez le 's' à la fin!
     // OU si vous avez un préfixe /api:
     // private let baseURL = "http://localhost:3000/api/events"
     

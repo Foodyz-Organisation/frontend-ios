@@ -22,9 +22,10 @@ struct FoodyzApp: App {
 // Ce view sera maintenant utilisé dans HomeUserScreen ou HomeProfessionalView
 struct MainTabView: View {
     @StateObject private var eventManager = EventManager()
+    @State private var selectedTab = 0
     
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             // Tab Événements
             NavigationView {
                 EventListView()
@@ -33,16 +34,15 @@ struct MainTabView: View {
                 Image(systemName: "calendar")
                 Text("Événements")
             }
+            .tag(0)
             
-            // Tab Liste Réclamations
-            NavigationView {
-                ReclamationListView()
-            }
-            .tabItem {
-                Image(systemName: "list.bullet")
-                Text("Réclamations")
-            }
-            .tag("reclamation")
+            // Tab Liste Réclamations - NAVIGATION VERS UIKit ViewController
+            ReclamationListNavigationView()
+                .tabItem {
+                    Image(systemName: "list.bullet")
+                    Text("Réclamations")
+                }
+                .tag(1)
             
             // Tab Nouvelle Réclamation
             ReclamationView(
@@ -57,6 +57,7 @@ struct MainTabView: View {
                 Image(systemName: "exclamationmark.bubble")
                 Text("Reclamation")
             }
+            .tag(2)
             
             // Tab Profile
             ProfileView()
@@ -64,8 +65,28 @@ struct MainTabView: View {
                     Image(systemName: "person")
                     Text("Profile")
                 }
+                .tag(3)
         }
         .environmentObject(eventManager)
+    }
+}
+
+// MARK: - Reclamation List Navigation View
+struct ReclamationListNavigationView: UIViewControllerRepresentable {
+    
+    func makeUIViewController(context: Context) -> UINavigationController {
+        let viewController = ReclamationListViewController()
+        let navigationController = UINavigationController(rootViewController: viewController)
+        
+        // Configuration de la barre de navigation
+        navigationController.navigationBar.prefersLargeTitles = false
+        navigationController.navigationBar.tintColor = UIColor(ReclamationBrandColors.textPrimary)
+        
+        return navigationController
+    }
+    
+    func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {
+        // Pas besoin de mise à jour
     }
 }
 
