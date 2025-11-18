@@ -61,10 +61,11 @@ struct EditEventView: View {
                     CreateButton(isValid: viewModel.isValid && !viewModel.isUpdating) {
                         viewModel.isUpdating = true
                         
-                        // Créer le DTO avec le format backend correct
+                        // ✅ FIX: Utiliser le format ISO correct pour les dates
                         let isoFormatter = ISO8601DateFormatter()
-                        isoFormatter.formatOptions = [.withInternetDateTime]
+                        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                         
+                        // ✅ FIX: Ne PAS convertir le statut - utiliser le format UI directement
                         let eventDTO = EventDTO(
                             id: event.id,
                             nom: viewModel.nom,
@@ -74,10 +75,11 @@ struct EditEventView: View {
                             image: event.image,
                             lieu: viewModel.lieu,
                             categorie: viewModel.categorie,
-                            statut: viewModel.backendStatut()  // ✅ Utilise le format backend
+                            statut: viewModel.statut  // ✅ Envoyer directement "à venir", "en cours", "terminé"
                         )
                         
                         print("📤 Envoi de la mise à jour pour l'événement: \(event.id)")
+                        print("📤 Statut envoyé: '\(viewModel.statut)'")
                         
                         // Appel API pour mettre à jour
                         EventAPI.shared.updateEvent(event.id, event: eventDTO) { result in
@@ -88,26 +90,12 @@ struct EditEventView: View {
                                 case .success(let updatedDTO):
                                     print("✅ Mise à jour réussie!")
                                     
-                                    // Créer l'événement mis à jour manuellement
-                                    let eventStatus: EventStatus
-                                    switch viewModel.statut.lowercased() {
-                                    case "à venir": eventStatus = .aVenir
-                                    case "en cours": eventStatus = .enCours
-                                    case "terminé": eventStatus = .termine
-                                    default: eventStatus = .aVenir
+                                    // Convertir le statut reçu en EventStatus
+                                    guard let updatedEvent = updatedDTO.toEvent() else {
+                                        viewModel.errorMessage = "Erreur de conversion du statut"
+                                        viewModel.showError = true
+                                        return
                                     }
-                                    
-                                    let updatedEvent = Event(
-                                        id: event.id,
-                                        nom: viewModel.nom,
-                                        description: viewModel.description,
-                                        dateDebut: isoFormatter.string(from: viewModel.dateDebutPicker),
-                                        dateFin: isoFormatter.string(from: viewModel.dateFinPicker),
-                                        image: event.image,
-                                        lieu: viewModel.lieu,
-                                        categorie: viewModel.categorie,
-                                        statut: eventStatus
-                                    )
                                     
                                     onUpdate(updatedEvent)
                                     dismiss()
@@ -313,31 +301,14 @@ class EditEventViewModel: ObservableObject {
         self.lieu = event.lieu
         self.categorie = event.categorie
         
-        // Conversion du statut enum vers display format
-        switch event.statut {
-        case .aVenir:
-            self.statut = "à venir"
-        case .enCours:
-            self.statut = "en cours"
-        case .termine:
-            self.statut = "terminé"
-        }
+        // ✅ FIX: Conversion du statut enum vers format backend (avec accents)
+        self.statut = event.statut.rawValue  // Donne directement "à venir", "en cours", "terminé"
 
         // Conversion ISO string -> Date
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
         self.dateDebutPicker = isoFormatter.date(from: event.dateDebut) ?? Date()
         self.dateFinPicker = isoFormatter.date(from: event.dateFin) ?? Date()
-    }
-    
-    // ✅ Fonction pour convertir le statut UI vers le format backend
-    func backendStatut() -> String {
-        switch statut.lowercased() {
-        case "à venir": return "A_VENIR"
-        case "en cours": return "EN_COURS"
-        case "terminé": return "TERMINE"
-        default: return "A_VENIR"
-        }
     }
 
     var isValid: Bool {

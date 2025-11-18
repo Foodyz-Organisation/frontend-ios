@@ -434,7 +434,6 @@ class EventAPI {
     }
     
     // MARK: - PUT - Mettre à jour
-    // MARK: - PUT - Mettre à jour (VERSION CORRIGÉE)
     func updateEvent(_ id: String, event: EventDTO, completion: @escaping (Result<EventDTO, Error>) -> Void) {
         let urlString = "\(baseURL)/\(id)"
         print("🔄 URL de mise à jour: \(urlString)")
@@ -456,9 +455,17 @@ class EventAPI {
             let jsonData = try encoder.encode(event)
             request.httpBody = jsonData
             
+            // 🔹 Intégration du debug JSON et du statut
             if let jsonString = String(data: jsonData, encoding: .utf8) {
-                print("📤 Données de mise à jour envoyées:")
+                print("📤 JSON envoyé:")
                 print(jsonString)
+                
+                // Vérifier le statut spécifiquement
+                if let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                   let statut = json["statut"] as? String {
+                    print("✅ Statut envoyé: '\(statut)'")
+                    print("✅ Caractères: \(Array(statut))")
+                }
             }
         } catch {
             print("❌ Erreur d'encodage PUT: \(error)")
@@ -467,19 +474,16 @@ class EventAPI {
         }
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
-            // 1. Vérifier les erreurs réseau
             if let error = error {
                 print("❌ Erreur réseau PUT: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
             
-            // 2. Vérifier le code HTTP
             if let httpResponse = response as? HTTPURLResponse {
                 print("📥 PUT Status Code: \(httpResponse.statusCode)")
                 print("📥 Headers: \(httpResponse.allHeaderFields)")
                 
-                // Si le code n'est pas 200-299, c'est une erreur
                 guard (200...299).contains(httpResponse.statusCode) else {
                     let error = NSError(
                         domain: "HTTP Error",
@@ -491,7 +495,6 @@ class EventAPI {
                 }
             }
             
-            // 3. Vérifier si on a des données
             if let data = data {
                 let dataSize = data.count
                 print("📥 Taille des données reçues: \(dataSize) bytes")
@@ -501,69 +504,25 @@ class EventAPI {
                     print(responseString)
                 }
                 
-                // Si les données sont vides ou presque vides
-                if dataSize < 10 {
-                    print("⚠️ Réponse vide ou très courte du serveur")
-                    print("✅ Mais HTTP 200, donc succès - utilisation des données envoyées")
-                    completion(.success(event))
-                    return
-                }
-                
-                // Essayer de décoder la réponse
+                // Décodage réponse
                 let decoder = JSONDecoder()
-                
-                // Format 1: EventDTO direct
-                do {
-                    let updatedEvent = try decoder.decode(EventDTO.self, from: data)
+                if let updatedEvent = try? decoder.decode(EventDTO.self, from: data) {
                     print("✅ Événement décodé avec succès!")
                     completion(.success(updatedEvent))
                     return
-                } catch {
-                    print("⚠️ Échec décodage EventDTO: \(error)")
-                }
-                
-                // Format 2: Wrapper {event: {...}}
-                struct EventWrapper: Codable {
-                    let event: EventDTO
-                }
-                do {
-                    let wrapper = try decoder.decode(EventWrapper.self, from: data)
-                    print("✅ Événement décodé avec succès (wrapper)!")
-                    completion(.success(wrapper.event))
-                    return
-                } catch {
-                    print("⚠️ Échec décodage EventWrapper: \(error)")
-                }
-                
-                // Format 3: Message de succès {message: "...", success: true}
-                struct SuccessMessage: Codable {
-                    let message: String?
-                    let success: Bool?
-                }
-                do {
-                    let message = try decoder.decode(SuccessMessage.self, from: data)
-                    print("✅ Message de succès décodé: \(message.message ?? "N/A")")
+                } else {
+                    print("⚠️ Impossible de décoder la réponse, utilisation des données envoyées")
                     completion(.success(event))
-                    return
-                } catch {
-                    print("⚠️ Échec décodage SuccessMessage: \(error)")
                 }
-                
-                // Si aucun format ne fonctionne, mais HTTP 200
-                print("⚠️ Impossible de décoder la réponse, mais HTTP 200")
-                print("✅ Considéré comme succès - utilisation des données envoyées")
-                completion(.success(event))
-                
             } else {
-                // Pas de données du tout
                 print("⚠️ Aucune donnée reçue du serveur")
-                print("✅ Mais HTTP 200, donc succès - utilisation des données envoyées")
                 completion(.success(event))
             }
         }
         
         task.resume()
     }
+
     
     // MARK: - DELETE
     func deleteEvent(_ id: String, completion: @escaping (Result<Void, Error>) -> Void) {
