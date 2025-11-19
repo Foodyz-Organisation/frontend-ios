@@ -3,14 +3,11 @@ import PhotosUI
 import Combine
 import MapKit
 
-
-
 // MARK: - CreateEventView
 struct CreateEventView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = CreateEventViewModel()
     @State private var showMapPicker = false
-    // On utilise directement le ViewModel
 
     let categories = ["cuisine française", "cuisine tunisienne", "cuisine japonaise"]
     let statuts = ["à venir", "en cours", "terminé"]
@@ -59,23 +56,48 @@ struct CreateEventView: View {
                     .background(BrandColors.Cream100)
                     .cornerRadius(16)
                     
+                    // 🔥 SECTION LIEU MODIFIÉE
                     EventFieldLabel(text: "Lieu")
                     Button(action: { showMapPicker = true }) {
                         HStack {
-                            Image(systemName: "mappin.and.ellipse").foregroundColor(BrandColors.TextSecondary)
-                            Text(viewModel.selectedCoordinate != nil ?
-                                "\(viewModel.selectedCoordinate!.latitude), \(viewModel.selectedCoordinate!.longitude)" :
-                                "Sélectionnez un lieu")
-
-                            .foregroundColor(viewModel.selectedCoordinate != nil ? BrandColors.TextPrimary : BrandColors.TextSecondary)
+                            Image(systemName: "mappin.and.ellipse")
+                                .foregroundColor(BrandColors.TextSecondary)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(viewModel.selectedCoordinate != nil && !viewModel.selectedLocationName.isEmpty
+                                     ? viewModel.selectedLocationName
+                                     : "Sélectionnez un lieu")
+                                    .foregroundColor(viewModel.selectedCoordinate != nil
+                                                   ? BrandColors.TextPrimary
+                                                   : BrandColors.TextSecondary)
+                                
+                                if let coord = viewModel.selectedCoordinate {
+                                    Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
+                                        .font(.caption)
+                                        .foregroundColor(BrandColors.TextSecondary)
+                                }
+                            }
+                            
                             Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(BrandColors.TextSecondary)
+                                .font(.caption)
                         }
                         .padding()
                         .background(BrandColors.Cream100)
                         .cornerRadius(16)
                     }
                     .sheet(isPresented: $showMapPicker) {
-                        MapPickerView(selectedCoordinate: $viewModel.selectedCoordinate)
+                        NavigationView {
+                            MapPickerView(selectedCoordinate: $viewModel.selectedCoordinate)
+                                .navigationTitle("Sélectionner un lieu")
+                                .navigationBarTitleDisplayMode(.inline)
+                                .onDisappear {
+                                    if let coordinate = viewModel.selectedCoordinate {
+                                        viewModel.updateLocationName(for: coordinate)
+                                    }
+                                }
+                        }
                     }
                     
                     EventFieldLabel(text: "Catégorie")
@@ -94,7 +116,6 @@ struct CreateEventView: View {
                         systemImage: "info.circle"
                     )
                     
-                    // Image (optionnelle)
                     EventFieldLabel(text: "Image (Optionnelle)")
                     ImageSection(
                         imageState: $viewModel.imageState,
@@ -299,15 +320,16 @@ class CreateEventViewModel: ObservableObject {
     @Published var errorMessage = ""
     @Published var isCreating = false
     @Published var selectedCoordinate: CLLocationCoordinate2D?
-
+    @Published var selectedLocationName: String = ""
     
     var isValid: Bool {
         !nom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         description.count >= 10 &&
-        (!lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedCoordinate != nil) &&
+        (selectedCoordinate != nil || !lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) &&
         !categorie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    
     func createEvent() -> Event? {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
@@ -327,10 +349,11 @@ class CreateEventViewModel: ObservableObject {
             return nil
         }
 
-        // 🔥 ICI : Nouvelle logique pour le lieu
         let lieuString: String
         if let coord = selectedCoordinate {
-            lieuString = "\(coord.latitude),\(coord.longitude)"
+            lieuString = !selectedLocationName.isEmpty
+                ? selectedLocationName
+                : "\(coord.latitude),\(coord.longitude)"
         } else {
             lieuString = lieu.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -341,11 +364,37 @@ class CreateEventViewModel: ObservableObject {
             dateDebut: formattedDateDebut,
             dateFin: formattedDateFin,
             image: nil,
-            lieu: lieuString, // 🔥 ICI tu envoies soit les coord GPS soit le texte
+            lieu: lieuString,
             categorie: categorie,
             statut: eventStatus
         )
     }
-
-
+    
+    func updateLocationName(for coordinate: CLLocationCoordinate2D) {
+        let geocoder = CLGeocoder()
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        geocoder.reverseGeocodeLocation(location) { [weak self] (placemarks: [CLPlacemark]?, error: Error?) in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if let placemark = placemarks?.first {
+                    var addressComponents: [String] = []
+                    
+                    if let name = placemark.name {
+                        addressComponents.append(name)
+                    }
+                    if let locality = placemark.locality {
+                        addressComponents.append(locality)
+                    }
+                    
+                    self.selectedLocationName = addressComponents.isEmpty
+                        ? "Lieu sélectionné"
+                        : addressComponents.joined(separator: ", ")
+                } else {
+                    self.selectedLocationName = "Lieu sélectionné"
+                }
+            }
+        }
+    }
 }
