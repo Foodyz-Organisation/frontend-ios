@@ -1,10 +1,3 @@
-//
-//  FoodyzApp.swift
-//  Foodyz
-//
-//  Created by Mouscou Mohamed khalil on 4/11/2025.
-//
-
 import SwiftUI
 import Combine
 
@@ -12,37 +5,41 @@ import Combine
 struct FoodyzApp: App {
     var body: some Scene {
         WindowGroup {
-            // Utiliser AppNavigation au lieu de MainTabView
             AppNavigation()
         }
     }
 }
 
 // MARK: - Main Tab View
-// Ce view sera maintenant utilisé dans HomeUserScreen ou HomeProfessionalView
 struct MainTabView: View {
     @StateObject private var eventManager = EventManager()
     @State private var selectedTab = 0
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Tab Événements
-            NavigationView {
-                EventListView()
-            }
-            .tabItem {
-                Image(systemName: "calendar")
-                Text("Événements")
-            }
-            .tag(0)
+            // Tab Home
+            HomeContentView(selectedTab: $selectedTab)
+                .tabItem {
+                    Image(systemName: "house.fill")
+                    Text("Home")
+                }
+                .tag(0)
             
-            // Tab Liste Réclamations - NAVIGATION VERS UIKit ViewController
+            // Tab Événements
+            EventListView()
+                .tabItem {
+                    Image(systemName: "calendar")
+                    Text("Événements")
+                }
+                .tag(1)
+            
+            // Tab Liste Réclamations
             ReclamationListNavigationView()
                 .tabItem {
                     Image(systemName: "list.bullet")
                     Text("Réclamations")
                 }
-                .tag(1)
+                .tag(2)
             
             // Tab Nouvelle Réclamation
             ReclamationView(
@@ -50,14 +47,13 @@ struct MainTabView: View {
                 complaintTypes: ["Late delivery", "Missing item", "Quality issue", "Other"],
                 commandeConcernees: ["Commande #1", "Commande #2", "Commande #3"]
             ) { restaurant, type, description, photos in
-                // Gérer la soumission
                 print("Réclamation soumise : \(type) pour \(restaurant)")
             }
             .tabItem {
                 Image(systemName: "exclamationmark.bubble")
                 Text("Reclamation")
             }
-            .tag(2)
+            .tag(3)
             
             // Tab Profile
             ProfileView()
@@ -65,9 +61,185 @@ struct MainTabView: View {
                     Image(systemName: "person")
                     Text("Profile")
                 }
-                .tag(3)
+                .tag(4)
         }
         .environmentObject(eventManager)
+    }
+}
+
+// MARK: - Home Content View
+struct HomeContentView: View {
+    @Binding var selectedTab: Int
+    @State private var showCreateEvent = false
+    @EnvironmentObject private var eventManager: EventManager
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Header
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Welcome Back!")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(HomeColors.darkGray)
+                    
+                    Text("Discover amazing food events and restaurants")
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal)
+                .padding(.top, 20)
+                
+                // Categories Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Categories")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(HomeColors.darkGray)
+                        .padding(.horizontal)
+                    
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 16) {
+                        // Card Events - Cliquable
+                        Button(action: {
+                            selectedTab = 1 // Naviguer vers le tab événements
+                        }) {
+                            CategoryCard(
+                                icon: "calendar.badge.clock",
+                                title: "Events",
+                                subtitle: "Browse food events",
+                                color: .orange
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        CategoryCard(
+                            icon: "fork.knife",
+                            title: "Restaurants",
+                            subtitle: "Find places to eat",
+                            color: .red
+                        )
+                        
+                        CategoryCard(
+                            icon: "star.fill",
+                            title: "Reviews",
+                            subtitle: "Share your experience",
+                            color: .yellow
+                        )
+                        
+                        // Card Complaints - Cliquable
+                        Button(action: {
+                            selectedTab = 2 // Naviguer vers le tab réclamations
+                        }) {
+                            CategoryCard(
+                                icon: "exclamationmark.bubble.fill",
+                                title: "Complaints",
+                                subtitle: "Report issues",
+                                color: .blue
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal)
+                }
+                Button(action: {
+                    showCreateEvent = true
+                }) {
+                    QuickActionButton(
+                        icon: "plus.circle.fill",
+                        title: "Nouvel Événement",
+                        color: .orange
+                    )
+                }
+                .sheet(isPresented: $showCreateEvent) {
+                    NavigationView {
+                        CreateEventView { newEvent in
+                            eventManager.addEvent(newEvent)
+                        }
+                    }
+                }
+
+                
+                // Quick Actions Section
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Quick Actions")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(HomeColors.darkGray)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            selectedTab = 1 // Naviguer vers événements
+                        }) {
+                            QuickActionButton(
+                                icon: "calendar.badge.plus",
+                                title: "View All Events",
+                                color: .orange
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            selectedTab = 3 // Naviguer vers nouvelle réclamation
+                        }) {
+                            QuickActionButton(
+                                icon: "plus.circle.fill",
+                                title: "New Complaint",
+                                color: .red
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            selectedTab = 2 // Naviguer vers liste réclamations
+                        }) {
+                            QuickActionButton(
+                                icon: "list.bullet.rectangle",
+                                title: "My Complaints",
+                                color: .blue
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Spacer(minLength: 20)
+            }
+        }
+        .background(HomeColors.background.ignoresSafeArea())
+    }
+}
+
+// MARK: - Quick Action Button
+struct QuickActionButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(color)
+                .frame(width: 50, height: 50)
+                .background(color.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            Text(title)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(HomeColors.darkGray)
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(HomeColors.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -78,7 +250,6 @@ struct ReclamationListNavigationView: UIViewControllerRepresentable {
         let viewController = ReclamationListViewController()
         let navigationController = UINavigationController(rootViewController: viewController)
         
-        // Configuration de la barre de navigation
         navigationController.navigationBar.prefersLargeTitles = false
         navigationController.navigationBar.tintColor = UIColor(ReclamationBrandColors.textPrimary)
         
@@ -86,7 +257,6 @@ struct ReclamationListNavigationView: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UINavigationController, context: Context) {
-        // Pas besoin de mise à jour
     }
 }
 
@@ -101,7 +271,6 @@ class EventManager: ObservableObject {
     }
     
     func loadEvents(completion: (() -> Void)? = nil) {
-        // Prevent multiple simultaneous loads
         guard !isLoading else {
             completion?()
             return
@@ -116,7 +285,6 @@ class EventManager: ObservableObject {
                 
                 switch result {
                 case .success(let eventDTOs):
-                    // Convert DTOs to Events
                     self?.events = eventDTOs.compactMap { $0.toEvent() }
                     print("✅ \(self?.events.count ?? 0) événement(s) chargé(s)")
                 case .failure(let error):
@@ -132,7 +300,6 @@ class EventManager: ObservableObject {
     }
     
     func addEvent(_ event: Event) {
-        // Convert Event to DTO
         let eventDTO = EventDTO(
             nom: event.nom,
             description: event.description,
@@ -145,13 +312,6 @@ class EventManager: ObservableObject {
         )
         
         print("📤 Envoi de l'événement au backend...")
-        print("   Nom: \(event.nom)")
-        print("   Description: \(event.description)")
-        print("   Date début: \(event.dateDebut)")
-        print("   Date fin: \(event.dateFin)")
-        print("   Lieu: \(event.lieu)")
-        print("   Catégorie: \(event.categorie)")
-        print("   Statut: \(event.statut.rawValue)")
         
         EventAPI.shared.createEvent(eventDTO) { [weak self] result in
             DispatchQueue.main.async {
@@ -196,7 +356,6 @@ class EventManager: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // Convert Event to DTO
         let eventDTO = EventDTO(
             id: event.id,
             nom: event.nom,

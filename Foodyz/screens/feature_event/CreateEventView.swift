@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import Combine
+import MapKit
 
 
 
@@ -8,7 +9,9 @@ import Combine
 struct CreateEventView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = CreateEventViewModel()
-    
+    @State private var showMapPicker = false
+    // On utilise directement le ViewModel
+
     let categories = ["cuisine française", "cuisine tunisienne", "cuisine japonaise"]
     let statuts = ["à venir", "en cours", "terminé"]
     let onSubmit: (Event) -> Void
@@ -57,11 +60,23 @@ struct CreateEventView: View {
                     .cornerRadius(16)
                     
                     EventFieldLabel(text: "Lieu")
-                    StyledTextField(
-                        text: $viewModel.lieu,
-                        placeholder: "Ex: Parc de la ville",
-                        systemImage: "mappin.and.ellipse"
-                    )
+                    Button(action: { showMapPicker = true }) {
+                        HStack {
+                            Image(systemName: "mappin.and.ellipse").foregroundColor(BrandColors.TextSecondary)
+                            Text(viewModel.selectedCoordinate != nil ?
+                                "\(viewModel.selectedCoordinate!.latitude), \(viewModel.selectedCoordinate!.longitude)" :
+                                "Sélectionnez un lieu")
+
+                            .foregroundColor(viewModel.selectedCoordinate != nil ? BrandColors.TextPrimary : BrandColors.TextSecondary)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(BrandColors.Cream100)
+                        .cornerRadius(16)
+                    }
+                    .sheet(isPresented: $showMapPicker) {
+                        MapPickerView(selectedCoordinate: $viewModel.selectedCoordinate)
+                    }
                     
                     EventFieldLabel(text: "Catégorie")
                     CustomDropdown(
@@ -283,15 +298,16 @@ class CreateEventViewModel: ObservableObject {
     @Published var showError = false
     @Published var errorMessage = ""
     @Published var isCreating = false
+    @Published var selectedCoordinate: CLLocationCoordinate2D?
+
     
     var isValid: Bool {
         !nom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         description.count >= 10 &&
-        !lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (!lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedCoordinate != nil) &&
         !categorie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    
     func createEvent() -> Event? {
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
@@ -310,17 +326,26 @@ class CreateEventViewModel: ObservableObject {
             showError = true
             return nil
         }
-        
+
+        // 🔥 ICI : Nouvelle logique pour le lieu
+        let lieuString: String
+        if let coord = selectedCoordinate {
+            lieuString = "\(coord.latitude),\(coord.longitude)"
+        } else {
+            lieuString = lieu.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         return Event(
             nom: nom,
             description: description,
-            dateDebut: formattedDateDebut, // ISO string
-            dateFin: formattedDateFin,     // ISO string
+            dateDebut: formattedDateDebut,
+            dateFin: formattedDateFin,
             image: nil,
-            lieu: lieu,
+            lieu: lieuString, // 🔥 ICI tu envoies soit les coord GPS soit le texte
             categorie: categorie,
             statut: eventStatus
         )
     }
+
 
 }

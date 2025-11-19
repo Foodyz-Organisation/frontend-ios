@@ -23,7 +23,7 @@ class ReclamationAPI {
     static let shared = ReclamationAPI()
     
     // ⚠️ IMPORTANT: Changez cette URL selon votre configuration
-    private let baseURL = "http://172.18.5.57:3000/reclamation"
+    private let baseURL = "http://172.20.10.6:3000/reclamation"
     
     private init() {}
     

@@ -28,7 +28,6 @@ struct AppNavigation: View {
             SplashView(onFinished: {
                 path.append(Screen.login)
             })
-            
             .navigationDestination(for: Screen.self) { screen in
                 switch screen {
                 case .splash:
@@ -85,7 +84,6 @@ struct AppNavigation: View {
                                 path.removeLast(path.count)
                                 path.append(Screen.homeUser)
                             case "logout":
-                                // Logout logic
                                 path.removeLast(path.count)
                                 path.append(Screen.login)
                             default:
@@ -95,7 +93,7 @@ struct AppNavigation: View {
                     )
                     
                 case .homeProfessional:
-                    HomeProfessionalView()
+                    MainTabView()
                 }
             }
         }
