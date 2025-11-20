@@ -1,11 +1,14 @@
 import SwiftUI
 import PhotosUI
 import Combine
+import MapKit
 
 // MARK: - EditEventView
 struct EditEventView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: EditEventViewModel
+    @State private var showMapPicker = false
+
     let event: Event
     let onUpdate: (Event) -> Void
     
@@ -46,8 +49,49 @@ struct EditEventView: View {
                         .background(BrandColors.Cream100)
                         .cornerRadius(16)
                     
+                    // 🔥 SECTION LIEU MODIFIÉE - Identique à CreateEventView
                     EventFieldLabel(text: "Lieu")
-                    StyledTextField(text: $viewModel.lieu, placeholder: "Ex: Parc de la ville", systemImage: "mappin.and.ellipse")
+                    Button(action: { showMapPicker = true }) {
+                        HStack {
+                            Image(systemName: "mappin.and.ellipse")
+                                .foregroundColor(BrandColors.TextSecondary)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(viewModel.selectedCoordinate != nil && !viewModel.selectedLocationName.isEmpty
+                                     ? viewModel.selectedLocationName
+                                     : (viewModel.lieu.isEmpty ? "Sélectionnez un lieu" : viewModel.lieu))
+                                    .foregroundColor(viewModel.selectedCoordinate != nil || !viewModel.lieu.isEmpty
+                                                   ? BrandColors.TextPrimary
+                                                   : BrandColors.TextSecondary)
+                                
+                                if let coord = viewModel.selectedCoordinate {
+                                    Text(String(format: "%.4f, %.4f", coord.latitude, coord.longitude))
+                                        .font(.caption)
+                                        .foregroundColor(BrandColors.TextSecondary)
+                                }
+                            }
+                            
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(BrandColors.TextSecondary)
+                                .font(.caption)
+                        }
+                        .padding()
+                        .background(BrandColors.Cream100)
+                        .cornerRadius(16)
+                    }
+                    .sheet(isPresented: $showMapPicker) {
+                        NavigationView {
+                            MapPickerView(selectedCoordinate: $viewModel.selectedCoordinate)
+                                .navigationTitle("Sélectionner un lieu")
+                                .navigationBarTitleDisplayMode(.inline)
+                                .onDisappear {
+                                    if let coordinate = viewModel.selectedCoordinate {
+                                        viewModel.updateLocationName(for: coordinate)
+                                    }
+                                }
+                        }
+                    }
                     
                     EventFieldLabel(text: "Catégorie")
                     CustomDropdown(selected: $viewModel.categorie, placeholder: "Sélectionnez une catégorie", options: categories, systemImage: "plus")
@@ -61,11 +105,20 @@ struct EditEventView: View {
                     CreateButton(isValid: viewModel.isValid && !viewModel.isUpdating) {
                         viewModel.isUpdating = true
                         
-                        // ✅ FIX: Utiliser le format ISO correct pour les dates
+                        // ✅ Format ISO correct pour les dates
                         let isoFormatter = ISO8601DateFormatter()
                         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                         
-                        // ✅ FIX: Ne PAS convertir le statut - utiliser le format UI directement
+                        // ✅ Gestion du lieu avec coordonnées ou texte
+                        let lieuString: String
+                        if let coord = viewModel.selectedCoordinate {
+                            lieuString = !viewModel.selectedLocationName.isEmpty
+                                ? viewModel.selectedLocationName
+                                : "\(coord.latitude),\(coord.longitude)"
+                        } else {
+                            lieuString = viewModel.lieu.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                        
                         let eventDTO = EventDTO(
                             id: event.id,
                             nom: viewModel.nom,
@@ -73,13 +126,14 @@ struct EditEventView: View {
                             dateDebut: isoFormatter.string(from: viewModel.dateDebutPicker),
                             dateFin: isoFormatter.string(from: viewModel.dateFinPicker),
                             image: event.image,
-                            lieu: viewModel.lieu,
+                            lieu: lieuString,
                             categorie: viewModel.categorie,
-                            statut: viewModel.statut  // ✅ Envoyer directement "à venir", "en cours", "terminé"
+                            statut: viewModel.statut
                         )
                         
                         print("📤 Envoi de la mise à jour pour l'événement: \(event.id)")
                         print("📤 Statut envoyé: '\(viewModel.statut)'")
+                        print("📤 Lieu envoyé: '\(lieuString)'")
                         
                         // Appel API pour mettre à jour
                         EventAPI.shared.updateEvent(event.id, event: eventDTO) { result in
@@ -90,7 +144,6 @@ struct EditEventView: View {
                                 case .success(let updatedDTO):
                                     print("✅ Mise à jour réussie!")
                                     
-                                    // Convertir le statut reçu en EventStatus
                                     guard let updatedEvent = updatedDTO.toEvent() else {
                                         viewModel.errorMessage = "Erreur de conversion du statut"
                                         viewModel.showError = true
@@ -294,28 +347,70 @@ class EditEventViewModel: ObservableObject {
     @Published var showError = false
     @Published var errorMessage = ""
     @Published var isUpdating = false
+    @Published var selectedCoordinate: CLLocationCoordinate2D?
+    @Published var selectedLocationName: String = ""
 
     init(event: Event) {
         self.nom = event.nom
         self.description = event.description
         self.lieu = event.lieu
         self.categorie = event.categorie
-        
-        // ✅ FIX: Conversion du statut enum vers format backend (avec accents)
-        self.statut = event.statut.rawValue  // Donne directement "à venir", "en cours", "terminé"
+        self.statut = event.statut.rawValue
 
         // Conversion ISO string -> Date
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime]
         self.dateDebutPicker = isoFormatter.date(from: event.dateDebut) ?? Date()
         self.dateFinPicker = isoFormatter.date(from: event.dateFin) ?? Date()
+        
+        // ✅ Tentative d'extraction des coordonnées du lieu existant
+        parseExistingLocation(from: event.lieu)
+    }
+    
+    private func parseExistingLocation(from lieu: String) {
+        // Si le lieu contient des coordonnées au format "latitude,longitude"
+        let components = lieu.components(separatedBy: ",")
+        if components.count == 2,
+           let lat = Double(components[0].trimmingCharacters(in: .whitespaces)),
+           let lon = Double(components[1].trimmingCharacters(in: .whitespaces)) {
+            selectedCoordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            updateLocationName(for: selectedCoordinate!)
+        }
     }
 
     var isValid: Bool {
         !nom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         description.count >= 10 &&
-        !lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (selectedCoordinate != nil || !lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) &&
         !categorie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    func updateLocationName(for coordinate: CLLocationCoordinate2D) {
+        let geocoder = CLGeocoder()
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        
+        geocoder.reverseGeocodeLocation(location) { [weak self] (placemarks: [CLPlacemark]?, error: Error?) in
+            guard let self = self else { return }
+            
+            DispatchQueue.main.async {
+                if let placemark = placemarks?.first {
+                    var addressComponents: [String] = []
+                    
+                    if let name = placemark.name {
+                        addressComponents.append(name)
+                    }
+                    if let locality = placemark.locality {
+                        addressComponents.append(locality)
+                    }
+                    
+                    self.selectedLocationName = addressComponents.isEmpty
+                        ? "Lieu sélectionné"
+                        : addressComponents.joined(separator: ", ")
+                } else {
+                    self.selectedLocationName = "Lieu sélectionné"
+                }
+            }
+        }
     }
 }
