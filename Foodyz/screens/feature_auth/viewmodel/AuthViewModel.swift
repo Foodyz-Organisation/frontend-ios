@@ -15,7 +15,7 @@ class AuthViewModel: ObservableObject {
     @Published var userRole: String? = nil
 
     // MARK: - Login
-    func login(onSuccess: ((String) -> Void)? = nil) async {
+    func login(onSuccess: ((String, String, String) -> Void)? = nil) async {
         isLoading = true
         errorMessage = nil
 
@@ -38,8 +38,8 @@ class AuthViewModel: ObservableObject {
             isLoggedIn = true
             userRole = response.role
 
-            // Trigger navigation based on role
-            onSuccess?(response.role)
+            // ✅ FIX: Pass role, ID, and access_token to the closure
+            onSuccess?(response.role, response.id, response.access_token)
 
         } catch {
             handleAuthError(error)
@@ -47,7 +47,6 @@ class AuthViewModel: ObservableObject {
 
         isLoading = false
     }
-
 
     // MARK: - User Signup
     func signup(userData: SignupRequest) async {

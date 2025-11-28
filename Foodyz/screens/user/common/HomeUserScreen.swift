@@ -9,24 +9,16 @@ struct HomeColors {
     static let white = Color.white
 }
 
-// Optional Hex initializer
+// MARK: - Hex Color Extension
 extension Color {
-    init(hex: String, alpha: Double = 1.0) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let r, g, b: UInt64
-        switch hex.count {
-        case 6:
-            r = (int >> 16) & 0xFF
-            g = (int >> 8) & 0xFF
-            b = int & 0xFF
-        default:
-            r = 1; g = 1; b = 1
-        }
-        self.init(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: alpha)
+    init(hex: Int, alpha: Double = 1.0) {
+        let red = Double((hex >> 16) & 0xFF) / 255.0
+        let green = Double((hex >> 8) & 0xFF) / 255.0
+        let blue = Double(hex & 0xFF) / 255.0
+        self.init(red: red, green: green, blue: blue, opacity: alpha)
     }
 }
+
 
 // MARK: - HomeUserScreen
 struct HomeUserScreen: View {
@@ -57,7 +49,7 @@ struct HomeUserScreen: View {
                         // Categories
                         HStack(spacing: 16) {
                             CategoryCard(icon: "bag.fill", title: "Takeaway", subtitle: "Pick up your food", color: HomeColors.primary)
-                            CategoryCard(icon: "gift.fill", title: "Daily Deals", subtitle: "Up to 50% off", color: Color(hex: "#F59E0B"))
+                            CategoryCard(icon: "gift.fill", title: "Daily Deals", subtitle: "Up to 50% off", color: Color(hex: 0xF59E0B))
                         }
                         .padding(.horizontal, 16)
 

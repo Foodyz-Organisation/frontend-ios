@@ -2,6 +2,8 @@ import SwiftUI
 
 struct UserSignupView: View {
     @StateObject private var viewModel = AuthViewModel()
+    
+    // View States
     @State private var showPassword = false
     @State private var showConfirmPassword = false
     @State private var fullName = ""
@@ -9,6 +11,7 @@ struct UserSignupView: View {
     @State private var phone = ""
     @State private var address = ""
 
+    // Completion Handler (for navigation back to Login screen)
     var onFinishSignup: (() -> Void)? = nil
 
     var body: some View {
@@ -19,7 +22,7 @@ struct UserSignupView: View {
                     Text("Create Your Account")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(Color(hex: 0x6B7280))
-                    
+                        
                     Text("Sign up to start your foodie journey")
                         .font(.body)
                         .foregroundColor(Color(hex: 0x6B7280))
@@ -27,35 +30,33 @@ struct UserSignupView: View {
                 }
                 .padding(.top, 40)
 
-                // MARK: Full Name
+                // MARK: Input Fields
                 CustomTextField(icon: "person.fill",
-                                placeholder: "Full Name",
-                                text: $fullName)
+                                 placeholder: "Full Name",
+                                 text: $fullName)
 
-                // MARK: Email
                 CustomTextField(icon: "envelope.fill",
-                                placeholder: "Email Address",
-                                text: $viewModel.email,
-                                keyboardType: .emailAddress)
-
-                // MARK: Passwords
-                CustomSecureField(icon: "lock.fill",
-                                  placeholder: "Password",
-                                  text: $viewModel.password,
-                                  showPassword: $showPassword)
+                                 placeholder: "Email Address",
+                                 text: $viewModel.email,
+                                 keyboardType: .emailAddress)
 
                 CustomSecureField(icon: "lock.fill",
-                                  placeholder: "Confirm Password",
-                                  text: $confirmPassword,
-                                  showPassword: $showConfirmPassword)
+                                     placeholder: "Password",
+                                     text: $viewModel.password,
+                                     showPassword: $showPassword)
+
+                CustomSecureField(icon: "lock.fill",
+                                     placeholder: "Confirm Password",
+                                     text: $confirmPassword,
+                                     showPassword: $showConfirmPassword)
 
                 // MARK: Optional Contact Info
                 CustomTextField(icon: "phone.fill",
-                                placeholder: "Phone Number",
-                                text: $phone)
+                                 placeholder: "Phone Number",
+                                 text: $phone)
                 CustomTextField(icon: "house.fill",
-                                placeholder: "Address",
-                                text: $address)
+                                 placeholder: "Address",
+                                 text: $address)
 
                 // MARK: Error Message
                 if let error = viewModel.errorMessage {
@@ -72,8 +73,8 @@ struct UserSignupView: View {
                         RoundedRectangle(cornerRadius: 18)
                             .fill(
                                 LinearGradient(colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
-                                               startPoint: .leading,
-                                               endPoint: .trailing)
+                                                 startPoint: .leading,
+                                                 endPoint: .trailing)
                             )
                             .frame(height: 56)
 
@@ -99,28 +100,46 @@ struct UserSignupView: View {
     private func signupAction() {
         viewModel.errorMessage = nil
 
-        guard !fullName.isEmpty,
-              !viewModel.email.isEmpty,
-              !viewModel.password.isEmpty else {
+        // Trim input
+        let cleanFullName = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanEmail = viewModel.email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPassword = viewModel.password.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanConfirmPassword = confirmPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. Validate required fields
+        guard !cleanFullName.isEmpty,
+              !cleanEmail.isEmpty,
+              !cleanPassword.isEmpty else {
             viewModel.errorMessage = "Please fill all required fields."
             return
         }
 
-        guard viewModel.password == confirmPassword else {
+        // 2. Validate password match
+        guard cleanPassword == cleanConfirmPassword else {
             viewModel.errorMessage = "Passwords do not match."
             return
         }
 
+        // 3. Prepare payload for backend (use optional types for phone/address if empty)
         let signupData = SignupRequest(
-            username: fullName,
-            email: viewModel.email,
-            password: viewModel.password,
-            phone: phone.isEmpty ? nil : phone,
-            address: address.isEmpty ? nil : address
+            username: cleanFullName,
+            email: cleanEmail,
+            password: cleanPassword,
+            // Use nil for optional fields if the trimmed string is empty
+            phone: cleanPhone.isEmpty ? nil : cleanPhone,
+            address: cleanAddress.isEmpty ? nil : cleanAddress
         )
 
+        print("Signup payload:", signupData)
+
+        // 4. Call ViewModel function
         Task {
+            // Your actual ViewModel logic (using AuthAPI) will run here
             await viewModel.signup(userData: signupData)
+            
+            // 5. Navigate on success
             if viewModel.errorMessage == nil {
                 onFinishSignup?()
             }
