@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct BrandColors {
+    // Anciennes propriétés (gardez-les pour la compatibilité)
     static let Yellow = Color(red: 1.0, green: 0.8, blue: 0.0)
     static let YellowPressed = Color(red: 0.9, green: 0.7, blue: 0.0)
     static let TextPrimary = Color.black
@@ -19,4 +20,17 @@ struct BrandColors {
     static let Green = Color.green
     static let Red = Color.red
     static let Dashed = Color.gray.opacity(0.5)
+    
+    // Nouvelles propriétés (convention lowercase - recommandé par Swift)
+    static let yellow = Yellow
+    static let yellowPressed = YellowPressed
+    static let textPrimary = TextPrimary
+    static let textSecondary = TextSecondary
+    static let fieldFill = FieldFill
+    static let cream100 = Cream100
+    static let cream200 = Cream200
+    static let orange = Orange
+    static let green = Green
+    static let red = Red
+    static let dashed = Dashed
 }
