@@ -7,8 +7,6 @@ enum Screen: Hashable {
     case homeUser
     case homeProfessional
     case proSignup // <-- New case for Professional Signup
-    case userProfile(String) // <-- New case for User Profile
-    case postDetails(String) // <-- New case for Post Details
 }
 
 struct AppNavigation: View {
@@ -57,14 +55,6 @@ struct AppNavigation: View {
                             default:
                                 print("Navigate to \(route)")
                             }
-                        },
-                        onNavigateToProfile: {
-                            if let userId = UserSession.shared.userId {
-                                path.append(Screen.userProfile(userId))
-                            }
-                        },
-                        onNavigateToPost: { postId in
-                            path.append(Screen.postDetails(postId))
                         }
                     )
 
@@ -76,12 +66,6 @@ struct AppNavigation: View {
 
                 case .homeProfessional:
                     HomeProfessionalView()
-                    
-                case .userProfile(let userId):
-                    UserProfileView(userId: userId)
-                    
-                case .postDetails(let postId):
-                    PostDetailsScreen(postId: postId)
                 }
             }
         }

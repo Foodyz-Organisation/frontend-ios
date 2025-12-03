@@ -37,13 +37,6 @@ class AuthViewModel: ObservableObject {
             )
             isLoggedIn = true
             userRole = response.role
-            
-            // Save user session for use across the app
-            UserSession.shared.saveSession(
-                userId: response.id,
-                email: response.email,
-                role: response.role
-            )
 
             // Trigger navigation based on role
             onSuccess?(response.role)
