@@ -11,6 +11,7 @@ struct TopAppBarColors {
 // MARK: - 1. TopAppBarView (Header)
 struct TopAppBarView: View {
     @Binding var showNotifications: Bool
+    @Binding var selectedTab: String
     var openDrawer: () -> Void
     var onSearchClick: () -> Void
     var onProfileClick: () -> Void
@@ -81,42 +82,61 @@ struct TopAppBarView: View {
 
             Divider().padding(.horizontal, 8)
 
-            SecondaryNavBarView()
+            SecondaryNavBarView(selectedTab: $selectedTab)
         }
         .background(TopAppBarColors.background.ignoresSafeArea(edges: .top))
     }
 }
 
-// MARK: - 2. SecondaryNavBarView
+
 struct SecondaryNavBarView: View {
+    @Binding var selectedTab: String
+    
     var body: some View {
         HStack(spacing: 0) {
-            NavBarItem(icon: "house.fill", selected: true)
-            NavBarItem(icon: "chart.line.uptrend.xyaxis")
-            NavBarItem(icon: "play.fill")
-            NavBarItem(icon: "message.fill")
-            NavBarItem(icon: "dollarsign.circle.fill")
+            NavBarItem(icon: "house.fill", isSelected: selectedTab == "home")
+                .onTapGesture { selectedTab = "home" }
+            
+            Spacer()
+            
+            NavBarItem(icon: "chart.line.uptrend.xyaxis", isSelected: selectedTab == "trending")
+                .onTapGesture { selectedTab = "trending" }
+            
+            Spacer()
+            
+            NavBarItem(icon: "play.fill", isSelected: selectedTab == "reels")
+                .onTapGesture { selectedTab = "reels" }
+            
+            Spacer()
+            
+            NavBarItem(icon: "message.fill", isSelected: selectedTab == "messages")
+                .onTapGesture { selectedTab = "messages" }
+            
+            Spacer()
+            
+            NavBarItem(icon: "dollarsign.circle.fill", isSelected: selectedTab == "earnings")
+                .onTapGesture { selectedTab = "earnings" }
         }
         .padding(.vertical, 10)
-        .background(TopAppBarColors.background)
+        .padding(.horizontal, 20)
+        .background(Color.white)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: -2)
     }
 }
 
-// MARK: - 3. NavBarItem
 struct NavBarItem: View {
-    var icon: String
-    var selected: Bool = false
-
+    let icon: String
+    let isSelected: Bool
+    
     var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(selected ? TopAppBarColors.primary : .gray)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+        Image(systemName: icon)
+            .font(.system(size: 24))
+            .foregroundColor(isSelected ? Color(hex: "#F59E0B") : .gray) // Use primary color for selected
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle()) // Make entire area tappable
     }
 }
+
 
 // MARK: - Preview
 struct TopAppBarView_Previews: PreviewProvider {
@@ -130,6 +150,7 @@ struct TopAppBarView_Previews: PreviewProvider {
             VStack {
                 TopAppBarView(
                     showNotifications: $showingNotifications,
+                    selectedTab: .constant("home"),
                     openDrawer: { },
                     onSearchClick: { },
                     onProfileClick: { }
