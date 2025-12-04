@@ -44,6 +44,10 @@ struct MessageDTO: Codable, Identifiable, Hashable {
     let type: MessageType
     let createdAt: Date?
     let updatedAt: Date?
+    let hasBadWords: Bool?
+    let moderatedContent: String?
+    let isSpam: Bool?
+    let spamConfidence: Double?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
@@ -53,6 +57,15 @@ struct MessageDTO: Codable, Identifiable, Hashable {
         case type
         case createdAt
         case updatedAt
+        case hasBadWords
+        case moderatedContent
+        case isSpam
+        case spamConfidence
+    }
+    
+    /// Returns the content that should be displayed to users
+    var displayContent: String {
+        return moderatedContent ?? content
     }
 }
 

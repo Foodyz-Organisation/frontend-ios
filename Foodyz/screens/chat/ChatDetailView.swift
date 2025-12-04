@@ -111,7 +111,7 @@ private struct MessageBubble: View {
             if isCurrentUser == true { Spacer() }
 
             VStack(alignment: isCurrentUser == true ? .trailing : .leading, spacing: 6) {
-                Text(message.content)
+                Text(message.displayContent)
                     .padding(14)
                     .background(bubbleBackground)
                     .foregroundColor(isCurrentUser == true ? .white : AppColors.darkGray)
