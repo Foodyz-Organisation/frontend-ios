@@ -2,11 +2,14 @@ import SwiftUI
 
 // MARK: - Home Colors
 struct HomeColors {
-    static let background = Color(red: 1.0, green: 0.98, blue: 0.92) // #FFFBEA
+    static let background = Color(red: 0.98, green: 0.98, blue: 0.98) // Light gray background
     static let lightGray = Color(red: 0.94, green: 0.94, blue: 0.94) // #F0F0F0
     static let darkGray = Color(red: 0.2, green: 0.2, blue: 0.2) // #333333
     static let primary = Color(red: 1.0, green: 0.42, blue: 0.0) // #FF6B00
     static let white = Color.white
+    static let pinkCard = Color(red: 0.98, green: 0.88, blue: 0.93) // Pastel pink #FAE1ED
+    static let yellowCard = Color(red: 1.0, green: 0.95, blue: 0.80) // Pastel yellow #FFF4CC
+    static let yellowHighlight = Color(red: 1.0, green: 0.93, blue: 0.60) // Yellow highlight #FFED99
 }
 
 // MARK: - Hex Color Extension
@@ -24,12 +27,16 @@ extension Color {
 struct HomeUserScreen: View {
     @State private var showingNotifications = false
     @State private var showingDrawer = false
+    @State private var showingSearch = false
     @State private var selectedFilter: String = "All"
     @State private var currentRoute: String = "home"
+    @State private var navigateToProfessionalId: String? = nil
 
     let filters = ["All", "Spicy", "Healthy", "Sweet"]
     
     var onNavigateDrawer: ((String) -> Void)? = nil
+    var onNavigateToProfessional: ((String) -> Void)? = nil
+    var onNavigateToOrders: (() -> Void)? = nil // NEW: Navigate to order history
 
 
     var body: some View {
@@ -40,16 +47,23 @@ struct HomeUserScreen: View {
                 TopAppBarView(
                     showNotifications: $showingNotifications,
                     openDrawer: { withAnimation { showingDrawer = true } },
-                    onSearchClick: { print("Search Clicked") },
-                    onProfileClick: { print("Profile Clicked") }
+                    onSearchClick: { showingSearch = true },
+                    onProfileClick: { print("Profile Clicked") },
+                    onOrdersClick: {
+                        onNavigateToOrders?()
+                    }
                 )
 
                 ScrollView {
                     VStack(spacing: 20) {
                         // Categories
                         HStack(spacing: 16) {
-                            CategoryCard(icon: "bag.fill", title: "Takeaway", subtitle: "Pick up your food", color: HomeColors.primary)
-                            CategoryCard(icon: "gift.fill", title: "Daily Deals", subtitle: "Up to 50% off", color: Color(hex: 0xF59E0B))
+                            CategoryCard(icon: "fork.knife", title: "Eat-in", subtitle: "Dine with us", backgroundColor: HomeColors.pinkCard, iconColor: Color(red: 0.89, green: 0.27, blue: 0.58))
+                            
+                            CategoryCard(icon: "calendar", title: "Daily Deals", subtitle: "Up to 50% off", backgroundColor: HomeColors.yellowCard, iconColor: Color(red: 0.96, green: 0.62, blue: 0.14))
+                                .onTapGesture {
+                                    onNavigateToOrders?()
+                                }
                         }
                         .padding(.horizontal, 16)
 
@@ -74,9 +88,9 @@ struct HomeUserScreen: View {
                     }
                     .padding(.top, 16)
                 }
-                .background(HomeColors.background)
+                .background(Color.white)
             }
-            .background(HomeColors.background.ignoresSafeArea())
+            .background(Color.white.ignoresSafeArea())
 
             // Drawer overlay
             if showingDrawer {
@@ -99,6 +113,12 @@ struct HomeUserScreen: View {
                 .animation(.easeInOut, value: showingDrawer)
             }
         }
+        .sheet(isPresented: $showingSearch) {
+            SearchScreen { professionalId in
+                showingSearch = false
+                onNavigateToProfessional?(professionalId)
+            }
+        }
     }
 
     // MARK: - Helpers
@@ -117,25 +137,32 @@ struct CategoryCard: View {
     let icon: String
     let title: String
     let subtitle: String
-    let color: Color
+    let backgroundColor: Color
+    let iconColor: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 28))
-                .foregroundColor(color)
-                .padding(12)
-                .background(color.opacity(0.1))
-                .clipShape(Circle())
+                .font(.system(size: 32, weight: .medium))
+                .foregroundColor(iconColor)
+                .frame(width: 56, height: 56)
+                .background(iconColor.opacity(0.2))
+                .cornerRadius(16)
 
-            Text(title).font(.system(size: 18, weight: .semibold)).foregroundColor(HomeColors.darkGray)
-            Text(subtitle).font(.system(size: 14)).foregroundColor(.gray)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(HomeColors.darkGray)
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundColor(.gray)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(HomeColors.white)
-        .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .padding(20)
+        .background(backgroundColor)
+        .cornerRadius(24)
+        .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 3)
     }
 }
 

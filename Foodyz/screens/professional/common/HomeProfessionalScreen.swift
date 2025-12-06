@@ -21,6 +21,10 @@ struct HomeProfessionalView: View {
     // Navigation binding from parent (AppNavigation)
     @Binding var path: NavigationPath
     let professionalId: String
+    
+    // Order management
+    @StateObject private var orderViewModel = OrderViewModel()
+    @State private var selectedOrderType: OrderType = .delivery
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -35,61 +39,114 @@ struct HomeProfessionalView: View {
                 FoodyzTopBar(path: $path)
                 
                 // --- 2. Content Area ---
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 30) {
-                        
-                        // --- Tab Icons Row ---
-                        TabIconRow(path: $path) // Pass navigation binding
-                            .padding(.horizontal, 20)
-                            .padding(.top, 10)
-                        
-                        // --- Pending Orders Section ---
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Pending Orders")
-                                .font(.title2)
-                                .fontWeight(.heavy)
-                                .foregroundColor(.black)
-                            Text("2 delivery orders waiting for confirmation")
-                                .font(.subheadline)
-                                .foregroundColor(.mediumGray)
+                if orderViewModel.isLoading {
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading orders...")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .padding(.top)
+                    Spacer()
+                } else if let errorMessage = orderViewModel.errorMessage {
+                    Spacer()
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.red)
+                        Text(errorMessage)
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        Button("Retry") {
+                            orderViewModel.loadPendingOrders(professionalId: professionalId)
                         }
-                        .padding(.horizontal, 20)
-                        
-                        // --- Sample Pending Orders ---
-                        VStack(spacing: 15) {
-                            OrderCardView(
-                                name: "Ahmed Ben Ali",
-                                order: "Couscous Royal (x1), Mint Tea (x2)",
-                                time: "5 minutes ago",
-                                total: "25.50 TND",
-                                location: "Avenue Habib Bourguiba, Tunis",
-                                avatarImage: "person.circle.fill"
-                            )
-                            
-                            OrderCardView(
-                                name: "Leila Jebali",
-                                order: "Vegetarian Mezze Platter (x1)",
-                                time: "25 minutes ago",
-                                total: "28.00 TND",
-                                location: "Rue de Marseille, La Marsa",
-                                avatarImage: "person.circle.fill"
-                            )
-                        }
-                        
-                        Spacer()
+                        .padding()
+                        .background(Color.foodyzOrange)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
                     }
-                    .padding(.bottom, 120) // Space for bottom bar
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 30) {
+                            
+                            // --- Tab Icons Row ---
+                            TabIconRow(path: $path)
+                                .padding(.horizontal, 20)
+                                .padding(.top, 10)
+                            
+                            // Filter orders by selectedOrderType
+                            let filteredOrders = orderViewModel.orders.filter { $0.orderType == selectedOrderType && $0.status == .pending }
+                            
+                            // --- Pending Orders Section ---
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Pending Orders")
+                                    .font(.title2)
+                                    .fontWeight(.heavy)
+                                    .foregroundColor(.black)
+                                Text("\(filteredOrders.count) \(selectedOrderType.displayName) orders waiting for confirmation")
+                                    .font(.subheadline)
+                                    .foregroundColor(.mediumGray)
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            // --- Dynamic Order Cards ---
+                            if filteredOrders.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "tray")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.gray)
+                                    Text("No pending \(selectedOrderType.displayName) orders")
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 40)
+                            } else {
+                                VStack(spacing: 15) {
+                                    ForEach(filteredOrders) { order in
+                                        OrderCardView(
+                                            order: order,
+                                            onAccept: {
+                                                orderViewModel.acceptOrder(orderId: order._id) { success in
+                                                    if success {
+                                                        // Refresh orders
+                                                        orderViewModel.loadPendingOrders(professionalId: professionalId)
+                                                    }
+                                                }
+                                            },
+                                            onRefuse: {
+                                                orderViewModel.refuseOrder(orderId: order._id) { success in
+                                                    if success {
+                                                        // Refresh orders
+                                                        orderViewModel.loadPendingOrders(professionalId: professionalId)
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding(.bottom, 120) // Space for bottom bar
+                    }
+                    .edgesIgnoringSafeArea(.bottom)
                 }
-                .edgesIgnoringSafeArea(.bottom)
             }
             
             // --- 3. Custom Bottom Bar ---
-            FoodyzBottomBar()
+            FoodyzBottomBar(selectedOrderType: $selectedOrderType)
         }
         // Hide system back button
         .navigationBarBackButtonHidden(true)
         // 🛑 REMOVED REDUNDANT .navigationDestination BLOCK
         // The .navigationDestination must only exist in AppNavigation.
+        .onAppear {
+            // Load pending orders when view appears
+            orderViewModel.loadPendingOrders(professionalId: professionalId)
+        }
     }
 }
 
@@ -212,21 +269,29 @@ struct TabIconRow: View {
 }
 
 
-// MARK: - Component 3: Order Card View (No change)
+// MARK: - Component 3: Order Card View
 
 struct OrderCardView: View {
-    let name: String
-    let order: String
-    let time: String
-    let total: String
-    let location: String
-    let avatarImage: String
+    let order: OrderResponse
+    let onAccept: () -> Void
+    let onRefuse: () -> Void
+    
+    // Helper to format order items
+    private var orderSummary: String {
+        order.items.map { "\($0.name) (x\($0.quantity))" }.joined(separator: ", ")
+    }
+    
+    // Helper for time display
+    private var timeAgo: String {
+        // Simple relative time - you can improve this with actual date formatting
+        "Received recently"
+    }
     
     var body: some View {
         VStack(spacing: 15) {
             HStack(alignment: .top) {
-                // Avatar (Placeholder)
-                Image(systemName: avatarImage)
+                // Avatar (Placeholder - could show user image if available)
+                Image(systemName: "person.circle.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 48, height: 48)
@@ -235,16 +300,16 @@ struct OrderCardView: View {
                     .overlay(Circle().stroke(Color.foodyzBackground, lineWidth: 2))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(name)
+                    Text("Order #\(order._id.suffix(6))")
                         .font(.headline)
                         .fontWeight(.bold)
                     
-                    Text(order)
+                    Text(orderSummary)
                         .font(.subheadline)
                         .foregroundColor(.mediumGray)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     
-                    Text("Received \(time)")
+                    Text(timeAgo)
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
@@ -255,7 +320,7 @@ struct OrderCardView: View {
                     Text("Order Total")
                         .font(.caption)
                         .foregroundColor(.gray)
-                    Text(total)
+                    Text(String(format: "%.2f DT", order.totalPrice))
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(Color.acceptedGreen)
@@ -266,20 +331,23 @@ struct OrderCardView: View {
             Divider()
                 .padding(.horizontal, -15)
             
-            // Location
-            HStack {
-                Image(systemName: "mappin.circle.fill")
-                    .foregroundColor(.locationPurple)
-                Text(location)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.locationPurple)
-                Spacer()
+            // Location (if delivery)
+            if let address = order.deliveryAddress, !address.isEmpty {
+                HStack {
+                    Image(systemName: "mappin.circle.fill")
+                        .foregroundColor(.locationPurple)
+                    Text(address)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.locationPurple)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 10)
+                .background(Color.iconBgPurple)
+                .cornerRadius(8)
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
-            .background(Color.iconBgPurple)
-            .cornerRadius(8)
             
             // Action Buttons
             HStack(spacing: 10) {
@@ -287,24 +355,28 @@ struct OrderCardView: View {
                 ActionButton(
                     label: "Accept",
                     iconName: "checkmark.circle.fill",
-                    color: .acceptedGreen
+                    color: .acceptedGreen,
+                    action: onAccept
                 )
                 
                 // Refuse Button
                 ActionButton(
                     label: "Refuse",
                     iconName: "xmark.circle.fill",
-                    color: .refusedRed
+                    color: .refusedRed,
+                    action: onRefuse
                 )
                 
-                // Flag/Chat Button (Smaller)
-                Button(action: {}) {
-                    Image(systemName: "flag.fill")
-                        .font(.title3)
-                        .foregroundColor(.mediumGray)
-                        .frame(width: 50, height: 50)
-                        .background(Color.foodyzBackground)
-                        .cornerRadius(10)
+                // Notes/Chat Button (Smaller)
+                if order.notes != nil {
+                    Button(action: {}) {
+                        Image(systemName: "text.bubble.fill")
+                            .font(.title3)
+                            .foregroundColor(.mediumGray)
+                            .frame(width: 50, height: 50)
+                            .background(Color.foodyzBackground)
+                            .cornerRadius(10)
+                    }
                 }
             }
         }
@@ -316,14 +388,15 @@ struct OrderCardView: View {
     }
 }
 
-// Helper for Action Buttons (No change)
+// Helper for Action Buttons
 struct ActionButton: View {
     let label: String
     let iconName: String
     let color: Color
+    let action: () -> Void
     
     var body: some View {
-        Button(action: {}) {
+        Button(action: action) {
             HStack {
                 Image(systemName: iconName)
                 Text(label)
@@ -341,19 +414,36 @@ struct ActionButton: View {
 }
 
 
-// MARK: - Component 4: FoodyzBottomBar (Mode Selector) (No change)
+// MARK: - Component 4: FoodyzBottomBar (Mode Selector)
 
 struct FoodyzBottomBar: View {
+    @Binding var selectedOrderType: OrderType
+    
     var body: some View {
         HStack(spacing: 10) {
             // Pick-up
-            BottomBarItem(iconName: "cube.box.fill", label: "Pick-up", isSelected: false)
+            BottomBarItem(
+                iconName: "cube.box.fill",
+                label: "Pick-up",
+                isSelected: selectedOrderType == .takeaway,
+                onTap: { selectedOrderType = .takeaway }
+            )
             
-            // Res Table (Restaurant Table/Dine-in)
-            BottomBarItem(iconName: "fork.knife", label: "Dine-in", isSelected: false)
+            // Dine-in
+            BottomBarItem(
+                iconName: "fork.knife",
+                label: "Dine-in",
+                isSelected: selectedOrderType == .eatIn,
+                onTap: { selectedOrderType = .eatIn }
+            )
             
             // Delivery (Selected/Primary)
-            BottomBarItem(iconName: "bag.fill", label: "Delivery", isSelected: true)
+            BottomBarItem(
+                iconName: "bag.fill",
+                label: "Delivery",
+                isSelected: selectedOrderType == .delivery,
+                onTap: { selectedOrderType = .delivery }
+            )
         }
         .padding(10)
         .background(Color.white)
@@ -368,23 +458,26 @@ struct BottomBarItem: View {
     let iconName: String
     let label: String
     let isSelected: Bool
+    let onTap: () -> Void
     
     var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: iconName)
-                .font(.body)
-            Text(label)
-                .font(.caption2)
-                .fontWeight(.medium)
+        Button(action: onTap) {
+            VStack(spacing: 4) {
+                Image(systemName: iconName)
+                    .font(.body)
+                Text(label)
+                    .font(.caption2)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(isSelected ? .white : .mediumGray)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
+            .background(isSelected ? Color.foodyzOrange : Color.white)
+            .cornerRadius(20)
+            .scaleEffect(isSelected ? 1.05 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
         }
-        .foregroundColor(isSelected ? .white : .mediumGray)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity)
-        .background(isSelected ? Color.foodyzOrange : Color.white)
-        .cornerRadius(20)
-        .scaleEffect(isSelected ? 1.05 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isSelected)
     }
 }
 

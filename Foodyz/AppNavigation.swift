@@ -45,6 +45,11 @@ enum Screen: Hashable {
     case menu
     case createMenuItem(String)
     case editMenuItem(MenuNavigationItem)
+    case professionalProfile(String) // Professional ID
+    case professionalMenu(String) // Professional ID for user menu view
+    case shoppingCart(String) // Professional ID
+    case orderConfirmation(String) // Professional ID
+    case orderHistory
 
     // ... Equatable and Hashable implementations ...
 }
@@ -56,7 +61,14 @@ enum Screen: Hashable {
 struct AppNavigation: View {
     @State private var path = NavigationPath()
     @StateObject private var authService = AuthService()
-    @StateObject private var menuVM = MenuViewModel() // updated
+    @StateObject private var menuVM = MenuViewModel()
+    
+    @StateObject private var cartViewModel: CartViewModel
+    
+    init() {
+        // Initialize with temp userId, will update after login
+        _cartViewModel = StateObject(wrappedValue: CartViewModel(userId: "temp"))
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -67,15 +79,25 @@ struct AppNavigation: View {
             // Navigation Destinations
             .navigationDestination(for: Screen.self) { screen in
                 let currentProId = authService.professionalId ?? ""
+                // Get current userId safely - using professionalId as userId
+                let currentUserId = authService.professionalId ?? "mock_user_id"
 
                 switch screen {
+                    
+                // ===================================
+                // AUTH SCREENS
+                // ===================================
+                    
                 case .splash:
                     SplashView(onFinished: { path.append(Screen.login) })
+                    
                 case .login:
                     LoginView(
                         onSignup: { path.append(Screen.userSignup) },
                         onLoginSuccess: { role, id, token in
                             authService.setSession(proId: id, token: token)
+                            // Update cart userId when user logs in
+                            cartViewModel.updateUserId(id)
                             path.removeLast(path.count)
                             switch role {
                             case .user:
@@ -87,12 +109,81 @@ struct AppNavigation: View {
                             }
                         }
                     )
+
+                    
                 case .userSignup:
                     UserSignupView(onFinishSignup: { path.removeLast() })
-                case .homeUser:
-                    HomeUserScreen()
+                    
                 case .proSignup:
                     ProSignupView()
+                    
+                // ===================================
+                // USER SCREENS
+                // ===================================
+                    
+                case .homeUser:
+                    HomeUserScreen(
+                        onNavigateToProfessional: { professionalId in
+                            path.append(Screen.professionalProfile(professionalId))
+                        },
+                        onNavigateToOrders: {
+                            path.append(Screen.orderHistory)
+                        }
+                    )
+                    
+                case .professionalProfile(let professionalId):
+                    ClientRestaurantProfileScreen(
+                        professionalId: professionalId,
+                        onViewMenuClick: { profId in
+                            // Navigate to menu screen for this professional
+                            path.append(Screen.professionalMenu(profId))
+                        }
+                    )
+                    
+                case .professionalMenu(let professionalId):
+                    DynamicMenuScreen(
+                        professionalId: professionalId,
+                        userId: currentUserId,
+                        onBackClick: { path.removeLast() },
+                        onCartClick: {
+                            path.append(Screen.shoppingCart(professionalId))
+                        }
+                    )
+                    
+                case .shoppingCart(let professionalId):
+                    ShoppingCartScreen(
+                        professionalId: professionalId,
+                        userId: currentUserId,
+                        onCheckout: { _ in
+                            path.append(Screen.orderConfirmation(professionalId))
+                        }
+                    )
+                    .environmentObject(cartViewModel) // Pass shared cartViewModel
+                    
+                case .orderConfirmation(let professionalId):
+                    OrderConfirmationScreen(
+                        cartViewModel: cartViewModel, // Use shared cartViewModel
+                        professionalId: professionalId,
+                        onOrderSuccess: {
+                            path.removeLast() // Remove confirmation
+                            path.removeLast() // Remove cart
+                            path.append(Screen.orderHistory)
+                        }
+                    )
+                    
+                case .orderHistory:
+                    OrderHistoryScreen(
+                        userId: currentUserId,
+                        onOrderClick: { orderId in
+                            print("Order clicked: \(orderId)")
+                            // Future: navigate to order details
+                        }
+                    )
+                    
+                // ===================================
+                // PROFESSIONAL SCREENS
+                // ===================================
+                    
                 case .homeProfessional:
                     // NOTE: This order (path, professionalId) should match your HomeProfessionalView definition
                     HomeProfessionalView(path: $path, professionalId: currentProId)
