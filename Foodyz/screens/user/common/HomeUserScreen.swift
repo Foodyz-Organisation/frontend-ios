@@ -37,6 +37,8 @@ struct HomeUserScreen: View {
     var onNavigateDrawer: ((String) -> Void)? = nil
     var onNavigateToProfessional: ((String) -> Void)? = nil
     var onNavigateToOrders: (() -> Void)? = nil // NEW: Navigate to order history
+    var onOpenMessages: (() -> Void)? = nil
+    var onOpenProfile: (() -> Void)? = nil
 
 
     var body: some View {
@@ -47,10 +49,14 @@ struct HomeUserScreen: View {
                 TopAppBarView(
                     showNotifications: $showingNotifications,
                     openDrawer: { withAnimation { showingDrawer = true } },
-                    onSearchClick: { showingSearch = true },
-                    onProfileClick: { print("Profile Clicked") },
-                    onOrdersClick: {
-                        onNavigateToOrders?()
+                    onSearchClick: { print("Search Clicked") },
+                    onProfileClick: {
+                        currentRoute = "profile"
+                        onOpenProfile?()
+                    },
+                    onMessagesTap: {
+                        currentRoute = "chat"
+                        onOpenMessages?()
                     }
                 )
 
@@ -88,9 +94,9 @@ struct HomeUserScreen: View {
                     }
                     .padding(.top, 16)
                 }
-                .background(Color.white)
+                .background(AppColors.background)
             }
-            .background(Color.white.ignoresSafeArea())
+            .background(AppColors.background.ignoresSafeArea())
 
             // Drawer overlay
             if showingDrawer {
@@ -102,6 +108,7 @@ struct HomeUserScreen: View {
                     DrawerView(
                         onCloseDrawer: { withAnimation { showingDrawer = false } },
                         navigateTo: { route in
+                                currentRoute = route
                             onNavigateDrawer?(route)
                             withAnimation { showingDrawer = false }
                         },
@@ -179,8 +186,8 @@ struct FilterChip: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .foregroundColor(isSelected ? HomeColors.white : HomeColors.darkGray)
-        .background(isSelected ? HomeColors.darkGray : HomeColors.lightGray)
+        .foregroundColor(isSelected ? AppColors.white : AppColors.darkGray)
+        .background(isSelected ? AppColors.darkGray : AppColors.lightGray)
         .cornerRadius(20)
         .shadow(color: isSelected ? .clear : Color.black.opacity(0.05), radius: 2)
     }
@@ -191,5 +198,6 @@ struct HomeUserScreen_Previews: PreviewProvider {
     static var previews: some View {
         HomeUserScreen()
             .previewLayout(.sizeThatFits)
+            .environmentObject(SessionManager.shared)
     }
 }

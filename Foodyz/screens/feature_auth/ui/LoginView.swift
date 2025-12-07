@@ -1,38 +1,31 @@
 import SwiftUI
 
-// =========================================================
-// MARK: - LoginView (FINAL, CORRECTED STRUCTURE)
-// =========================================================
 struct LoginView: View {
-    
     @StateObject private var viewModel = AuthViewModel()
     @State private var showPassword = false
     @State private var showError = false
 
+    // Remove onLogin: (() -> Void)? = nil as it seems redundant with onLoginSuccess
     var onSignup: (() -> Void)? = nil
-    
-    var onLoginSuccess: (_ role: UserRole, _ id: String, _ token: String) -> Void
-    
-    enum UserRole {
-        case user, professional
-    }
+    // This closure will be called when login is successful
+    var onLoginSuccess: (AppUserRole) -> Void
 
     var body: some View {
-        // Subtle background gradient matching the screenshot's light yellow glow
-        let backgroundGradient = LinearGradient(
-            colors: [Color.backgroundColor, Color.backgroundColor, Color.secondaryColor.opacity(0.1)],
+        // ... (Body content remains the same)
+
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
             startPoint: .top,
             endPoint: .bottom
         )
-        
+
         ScrollView {
             VStack(spacing: 16) {
-                // Logo
+                // MARK: Logo
                 ZStack {
                     Circle()
-                        // Logo Circle Gradient (Primary/Secondary)
                         .fill(RadialGradient(
-                            gradient: Gradient(colors: [Color.primaryColor, Color.secondaryColor]),
+                            gradient: Gradient(colors: [Color(hex: 0xFFECB3), Color(hex: 0xFFC107)]),
                             center: .center,
                             startRadius: 10,
                             endRadius: 80
@@ -89,13 +82,16 @@ struct LoginView: View {
                         .padding(.top, 4)
                 }
 
-                // Login Button
+                // MARK: Login Button
                 Button(action: loginAction) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 18)
-                            .fill(Color.primaryColor)
+                            .fill(LinearGradient(
+                                colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ))
                             .frame(height: 56)
-                            .shadow(color: Color.primaryColor.opacity(0.5), radius: 5, y: 5)
 
                         if viewModel.isLoading {
                             ProgressView().tint(.white)

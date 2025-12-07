@@ -12,9 +12,11 @@ struct DrawerView: View {
     let onCloseDrawer: () -> Void
     let navigateTo: (String) -> Void
     var currentRoute: String // Highlight the currently active route
+    @EnvironmentObject private var session: SessionManager
     
     let menuItems: [DrawerItem] = [
         DrawerItem(icon: "house.fill", label: "Home", route: "home", isLogout: false),
+        DrawerItem(icon: "bubble.left.and.bubble.right.fill", label: "Messages", route: "chat", isLogout: false),
         DrawerItem(icon: "gearshape.fill", label: "Settings", route: "settings", isLogout: false),
         DrawerItem(icon: "heart.fill", label: "Favorites", route: "favorites", isLogout: false),
         DrawerItem(icon: "person.fill", label: "Profile", route: "profile", isLogout: false),
@@ -92,7 +94,7 @@ struct DrawerView: View {
             Spacer()
         }
         .frame(width: 280)
-        .background(HomeColors.white)
+        .background(AppColors.white)
         .edgesIgnoringSafeArea(.vertical)
     }
 }
@@ -108,17 +110,17 @@ struct DrawerRow: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 22, height: 22)
-                .foregroundColor(item.isLogout ? .red : (isSelected ? HomeColors.primary : HomeColors.darkGray))
+                .foregroundColor(item.isLogout ? .red : (isSelected ? AppColors.primary : AppColors.darkGray))
             
             Text(item.label)
                 .font(.subheadline).fontWeight(.medium)
-                .foregroundColor(item.isLogout ? .red : HomeColors.darkGray)
+                .foregroundColor(item.isLogout ? .red : AppColors.darkGray)
             
             Spacer()
         }
         .padding(.vertical, 12)
         .padding(.horizontal, 20)
-        .background(isSelected && !item.isLogout ? HomeColors.primary.opacity(0.1) : Color.clear)
+        .background(isSelected && !item.isLogout ? AppColors.primary.opacity(0.1) : Color.clear)
         .contentShape(Rectangle())
     }
 }

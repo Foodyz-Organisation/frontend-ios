@@ -12,10 +12,12 @@ class AuthViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
     @Published var isLoggedIn = false
-    @Published var userRole: String? = nil
+    @Published var userRole: AppUserRole? = nil
+
+    private let session = SessionManager.shared
 
     // MARK: - Login
-    func login(onSuccess: ((String, String, String) -> Void)? = nil) async {
+    func login(onSuccess: ((AppUserRole) -> Void)? = nil) async {
         isLoading = true
         errorMessage = nil
 
@@ -36,10 +38,13 @@ class AuthViewModel: ObservableObject {
                 responseType: LoginResponse.self
             )
             isLoggedIn = true
-            userRole = response.role
+            userRole = AppUserRole(rawValue: response.role) ?? .user
+            session.update(with: response)
 
-            // ✅ FIX: Pass role, ID, and access_token to the closure
-            onSuccess?(response.role, response.id, response.access_token)
+            // Trigger navigation based on role
+            if let resolvedRole = userRole {
+                onSuccess?(resolvedRole)
+            }
 
         } catch {
             handleAuthError(error)
@@ -70,7 +75,7 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         do {
-            let response: SignupProResponse = try await AuthAPI.shared.post(
+            _ = try await AuthAPI.shared.post(
                 endpoint: "signup/professional",
                 body: proData,
                 responseType: SignupProResponse.self

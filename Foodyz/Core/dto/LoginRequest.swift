@@ -12,4 +12,6 @@ struct LoginResponse: Codable {
     let role: String
     let email: String
     let id: String
+    let username: String?
+    let avatarUrl: String?
 }

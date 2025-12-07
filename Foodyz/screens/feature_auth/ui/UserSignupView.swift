@@ -1,17 +1,19 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct UserSignupView: View {
     @StateObject private var viewModel = AuthViewModel()
-    
-    // View States
     @State private var showPassword = false
     @State private var showConfirmPassword = false
     @State private var fullName = ""
     @State private var confirmPassword = ""
     @State private var phone = ""
     @State private var address = ""
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var avatarPreview: UIImage?
+    @State private var avatarUploadData: Data?
 
-    // Completion Handler (for navigation back to Login screen)
     var onFinishSignup: (() -> Void)? = nil
 
     var body: some View {
@@ -22,7 +24,7 @@ struct UserSignupView: View {
                     Text("Create Your Account")
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(Color(hex: 0x6B7280))
-                        
+                    
                     Text("Sign up to start your foodie journey")
                         .font(.body)
                         .foregroundColor(Color(hex: 0x6B7280))
@@ -30,33 +32,75 @@ struct UserSignupView: View {
                 }
                 .padding(.top, 40)
 
-                // MARK: Input Fields
+                // MARK: Avatar Picker
+                PhotosPicker(selection: $avatarItem, matching: .images, photoLibrary: .shared()) {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            if let avatarPreview {
+                                Image(uiImage: avatarPreview)
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 22, weight: .medium))
+                                    .foregroundColor(Color(hex: 0x6B7280))
+                            }
+                        }
+                        .frame(width: 64, height: 64)
+                        .background(Color(hex: 0xF3F4F6))
+                        .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Add profile photo")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(hex: 0x111827))
+                            Text("Optional, but it helps professionals recognize you.")
+                                .font(.footnote)
+                                .foregroundColor(.gray)
+                        }
+
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(18)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                }
+                .onChange(of: avatarItem) { _, newValue in
+                    Task { await updateAvatarSelection(with: newValue) }
+                }
+
+                // MARK: Full Name
                 CustomTextField(icon: "person.fill",
-                                 placeholder: "Full Name",
-                                 text: $fullName)
+                                placeholder: "Full Name",
+                                text: $fullName)
 
+                // MARK: Email
                 CustomTextField(icon: "envelope.fill",
-                                 placeholder: "Email Address",
-                                 text: $viewModel.email,
-                                 keyboardType: .emailAddress)
+                                placeholder: "Email Address",
+                                text: $viewModel.email,
+                                keyboardType: .emailAddress)
+
+                // MARK: Passwords
+                CustomSecureField(icon: "lock.fill",
+                                  placeholder: "Password",
+                                  text: $viewModel.password,
+                                  showPassword: $showPassword)
 
                 CustomSecureField(icon: "lock.fill",
-                                     placeholder: "Password",
-                                     text: $viewModel.password,
-                                     showPassword: $showPassword)
-
-                CustomSecureField(icon: "lock.fill",
-                                     placeholder: "Confirm Password",
-                                     text: $confirmPassword,
-                                     showPassword: $showConfirmPassword)
+                                  placeholder: "Confirm Password",
+                                  text: $confirmPassword,
+                                  showPassword: $showConfirmPassword)
 
                 // MARK: Optional Contact Info
                 CustomTextField(icon: "phone.fill",
-                                 placeholder: "Phone Number",
-                                 text: $phone)
+                                placeholder: "Phone Number",
+                                text: $phone)
                 CustomTextField(icon: "house.fill",
-                                 placeholder: "Address",
-                                 text: $address)
+                                placeholder: "Address",
+                                text: $address)
 
                 // MARK: Error Message
                 if let error = viewModel.errorMessage {
@@ -73,8 +117,8 @@ struct UserSignupView: View {
                         RoundedRectangle(cornerRadius: 18)
                             .fill(
                                 LinearGradient(colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
-                                                 startPoint: .leading,
-                                                 endPoint: .trailing)
+                                               startPoint: .leading,
+                                               endPoint: .trailing)
                             )
                             .frame(height: 56)
 
@@ -116,32 +160,54 @@ struct UserSignupView: View {
             return
         }
 
-        // 2. Validate password match
-        guard cleanPassword == cleanConfirmPassword else {
+        guard viewModel.password == confirmPassword else {
             viewModel.errorMessage = "Passwords do not match."
             return
         }
 
-        // 3. Prepare payload for backend (use optional types for phone/address if empty)
+        let dataURI = avatarUploadData?.dataURI()
+
         let signupData = SignupRequest(
-            username: cleanFullName,
-            email: cleanEmail,
-            password: cleanPassword,
-            // Use nil for optional fields if the trimmed string is empty
-            phone: cleanPhone.isEmpty ? nil : cleanPhone,
-            address: cleanAddress.isEmpty ? nil : cleanAddress
+            username: fullName,
+            email: viewModel.email,
+            password: viewModel.password,
+            phone: phone.isEmpty ? nil : phone,
+            address: address.isEmpty ? nil : address,
+            avatarUrl: dataURI
         )
 
-        print("Signup payload:", signupData)
-
-        // 4. Call ViewModel function
         Task {
-            // Your actual ViewModel logic (using AuthAPI) will run here
             await viewModel.signup(userData: signupData)
-            
-            // 5. Navigate on success
             if viewModel.errorMessage == nil {
                 onFinishSignup?()
+            }
+        }
+    }
+}
+
+// MARK: - Avatar Helpers
+private extension UserSignupView {
+    func updateAvatarSelection(with item: PhotosPickerItem?) async {
+        guard let item else {
+            await MainActor.run {
+                avatarPreview = nil
+                avatarUploadData = nil
+            }
+            return
+        }
+
+        do {
+            if let data = try await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                let compressed = image.jpegData(compressionQuality: 0.85) ?? data
+                await MainActor.run {
+                    avatarPreview = image
+                    avatarUploadData = compressed
+                }
+            }
+        } catch {
+            await MainActor.run {
+                viewModel.errorMessage = "Unable to load selected image."
             }
         }
     }

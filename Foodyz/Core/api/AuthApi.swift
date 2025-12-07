@@ -77,8 +77,15 @@ class AuthAPI {
             throw AuthError.serverError("No server response")
         }
         
+        if httpResponse.statusCode == 404 {
+            await MainActor.run { SessionManager.shared.clear() }
+            return
+        }
+
         guard (200...299).contains(httpResponse.statusCode) else {
             throw AuthError.serverError("Logout failed")
         }
+
+        await MainActor.run { SessionManager.shared.clear() }
     }
 }

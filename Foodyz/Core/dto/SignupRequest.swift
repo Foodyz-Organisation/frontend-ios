@@ -6,6 +6,7 @@ struct SignupRequest: Codable {
     let password: String
     let phone: String?
     let address: String?
+    let avatarUrl: String?
 }
 
 

@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - TopAppBar Colors (self-contained for this file)
 struct TopAppBarColors {
-    static let background = Color.white
-    static let lightGray = Color(red: 0.94, green: 0.94, blue: 0.94) // #F0F0F0
-    static let darkGray = Color(red: 0.2, green: 0.2, blue: 0.2) // #333333
-    static let primary = Color(red: 1.0, green: 0.42, blue: 0.0) // #FF6B00
+    static let background = AppColors.background
+    static let lightGray = AppColors.lightGray
+    static let darkGray = AppColors.darkGray
+    static let primary = AppColors.primary
 }
 
 // MARK: - 1. TopAppBarView (Header)
@@ -15,7 +15,9 @@ struct TopAppBarView: View {
     var onSearchClick: () -> Void
     var onProfileClick: () -> Void
     var onOrdersClick: (() -> Void)? = nil // NEW: Navigate to orders
-
+    var onMessagesTap: () -> Void
+    @EnvironmentObject private var session: SessionManager
+    
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
@@ -27,6 +29,8 @@ struct TopAppBarView: View {
                         .padding(10)
                         .background(TopAppBarColors.lightGray)
                         .clipShape(Circle())
+                    AvatarView(avatarURL: session.avatarURL, size: 44, fallback: session.displayName)
+                        .overlay(Circle().stroke(TopAppBarColors.lightGray, lineWidth: 1))
                 }
 
                 Text("Foodies")
@@ -69,6 +73,14 @@ struct TopAppBarView: View {
                             .fill(Color(red: 1.0, green: 0.67, blue: 0.0))
                             .frame(width: 8, height: 8)
                             .offset(x: 4, y: 4)
+                            .fill(Color.red)
+                            .frame(width: 14, height: 14)
+                            .overlay(
+                                Text("3")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
+                            .offset(x: 6, y: -6)
                     }
                 }
 
@@ -88,6 +100,7 @@ struct TopAppBarView: View {
             Divider().padding(.horizontal, 8)
 
             SecondaryNavBarView(onOrdersClick: onOrdersClick)
+            SecondaryNavBarView(onMessagesTap: onMessagesTap)
         }
         .background(TopAppBarColors.background.ignoresSafeArea(edges: .top))
     }
@@ -95,20 +108,17 @@ struct TopAppBarView: View {
 
 // MARK: - 2. SecondaryNavBarView
 struct SecondaryNavBarView: View {
-    var onOrdersClick: (() -> Void)? = nil
-    
+    var onMessagesTap: () -> Void
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 0) {
             NavBarItem(icon: "house.fill", selected: true)
             NavBarItem(icon: "chart.line.uptrend.xyaxis")
             NavBarItem(icon: "play.fill")
-            NavBarItem(icon: "message.fill")
-            NavBarItem(icon: "dollarsign.circle.fill", onClick: {
-                onOrdersClick?()
-            })
+            NavBarItem(icon: "message.fill", action: onMessagesTap)
+            NavBarItem(icon: "dollarsign.circle.fill")
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(TopAppBarColors.background)
     }
 }
@@ -148,8 +158,10 @@ struct TopAppBarView_Previews: PreviewProvider {
                     showNotifications: $showingNotifications,
                     openDrawer: { },
                     onSearchClick: { },
-                    onProfileClick: { }
+                    onProfileClick: { },
+                    onMessagesTap: { }
                 )
+                .environmentObject(SessionManager.shared)
                 Spacer()
             }
             .background(TopAppBarColors.background.ignoresSafeArea())

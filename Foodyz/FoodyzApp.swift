@@ -8,10 +8,18 @@
 import SwiftUI
 
 @main
+<<<<<<< HEAD
+=======
+@MainActor
+>>>>>>> chat_management
 struct FoodyzApp: App {
     var body: some Scene {
         WindowGroup {
             AppNavigation()
+<<<<<<< HEAD
+=======
+                .environmentObject(SessionManager.shared)
+>>>>>>> chat_management
         }
     }
 }
