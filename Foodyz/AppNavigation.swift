@@ -9,6 +9,8 @@ enum Screen: Hashable {
     case proSignup // <-- New case for Professional Signup
     case userProfile(String) // <-- New case for User Profile
     case postDetails(String) // <-- New case for Post Details
+    case professionalAddContent // <-- New case for Professional Add Content
+    case professionalProfile(String) // <-- New case for Professional Profile
 }
 
 struct AppNavigation: View {
@@ -75,7 +77,16 @@ struct AppNavigation: View {
                     })
 
                 case .homeProfessional:
-                    HomeProfessionalView()
+                    HomeProfessionalView(
+                        path: $path,
+                        professionalId: UserSession.shared.userId ?? ""
+                    )
+                    
+                case .professionalAddContent:
+                    ProfessionalAddContentScreen()
+                    
+                case .professionalProfile(let professionalId):
+                    ProfessionalProfileScreen(professionalId: professionalId)
                     
                 case .userProfile(let userId):
                     UserProfileView(userId: userId)
