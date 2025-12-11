@@ -5,6 +5,7 @@ import Combine
 
 struct ProfessionalProfileScreen: View {
     let professionalId: String
+    var onPostTap: ((String) -> Void)? = nil  // Callback for post tap
     @StateObject private var viewModel = ProfessionalProfileViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: ProfileTab = .about
@@ -234,9 +235,9 @@ struct ProfessionalProfileScreen: View {
                             if selectedTab == .about {
                                 AboutTabContent()
                             } else if selectedTab == .reels {
-                                ReelsTabContent(posts: viewModel.videoPosts)
+                                ReelsTabContent(posts: viewModel.videoPosts, onPostTap: onPostTap)
                             } else {
-                                PhotosTabContent(posts: viewModel.imagePosts)
+                                PhotosTabContent(posts: viewModel.imagePosts, onPostTap: onPostTap)
                             }
                         }
                         .padding(.top, 8)
@@ -252,7 +253,12 @@ struct ProfessionalProfileScreen: View {
         .navigationBarBackButtonHidden(true)
         .onAppear {
             Task {
-                await viewModel.loadProfessionalPosts(userId: professionalId)
+                await viewModel.loadProfessionalPosts(professionalId: professionalId)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshPostsFeed"))) { _ in
+            Task {
+                await viewModel.loadProfessionalPosts(professionalId: professionalId)
             }
         }
     }
@@ -332,6 +338,7 @@ struct AboutTabContent: View {
 
 struct ReelsTabContent: View {
     let posts: [Post]
+    var onPostTap: ((String) -> Void)? = nil
     
     var body: some View {
         if posts.isEmpty {
@@ -353,6 +360,9 @@ struct ReelsTabContent: View {
             ], spacing: 2) {
                 ForEach(posts) { post in
                     MediaGridItem(post: post, showVideoIndicator: true)
+                        .onTapGesture {
+                            onPostTap?(post.id)
+                        }
                 }
             }
         }
@@ -361,6 +371,7 @@ struct ReelsTabContent: View {
 
 struct PhotosTabContent: View {
     let posts: [Post]
+    var onPostTap: ((String) -> Void)? = nil
     
     var body: some View {
         if posts.isEmpty {
@@ -382,6 +393,9 @@ struct PhotosTabContent: View {
             ], spacing: 2) {
                 ForEach(posts) { post in
                     MediaGridItem(post: post, showVideoIndicator: false)
+                        .onTapGesture {
+                            onPostTap?(post.id)
+                        }
                 }
             }
         }
@@ -394,36 +408,60 @@ struct MediaGridItem: View {
     let post: Post
     let showVideoIndicator: Bool
     
+    private let itemSize: CGFloat = (UIScreen.main.bounds.width - 36) / 3
+    
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            if let imageUrl = post.fullDisplayImageUrl, let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: (UIScreen.main.bounds.width - 36) / 3, height: (UIScreen.main.bounds.width - 36) / 3)
-                            .clipped()
-                    case .failure(_):
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: (UIScreen.main.bounds.width - 36) / 3, height: (UIScreen.main.bounds.width - 36) / 3)
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: (UIScreen.main.bounds.width - 36) / 3, height: (UIScreen.main.bounds.width - 36) / 3)
-                            .overlay(ProgressView())
-                    @unknown default:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: (UIScreen.main.bounds.width - 36) / 3, height: (UIScreen.main.bounds.width - 36) / 3)
+            // For videos: check if we have a server thumbnail, otherwise generate one
+            if post.isVideo {
+                if let thumbnailUrl = post.thumbnailUrl,
+                   !thumbnailUrl.isEmpty,
+                   let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "localhost")) {
+                    // Use server-generated thumbnail
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: itemSize, height: itemSize)
+                                .clipped()
+                        case .failure(_), .empty:
+                            // Fallback to client-side thumbnail generation
+                            videoThumbnailFallback
+                        @unknown default:
+                            videoThumbnailFallback
+                        }
                     }
+                } else {
+                    // No server thumbnail - generate on client
+                    videoThumbnailFallback
                 }
             } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: (UIScreen.main.bounds.width - 36) / 3, height: (UIScreen.main.bounds.width - 36) / 3)
+                // For images: use AsyncImage directly
+                if let imageUrl = post.fullDisplayImageUrl, let url = URL(string: imageUrl) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: itemSize, height: itemSize)
+                                .clipped()
+                        case .failure(_):
+                            imagePlaceholder
+                        case .empty:
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: itemSize, height: itemSize)
+                                .overlay(ProgressView())
+                        @unknown default:
+                            imagePlaceholder
+                        }
+                    }
+                } else {
+                    imagePlaceholder
+                }
             }
             
             // Video indicator
@@ -436,6 +474,29 @@ struct MediaGridItem: View {
             }
         }
     }
+    
+    // Fallback: Generate thumbnail from video URL on client
+    @ViewBuilder
+    private var videoThumbnailFallback: some View {
+        if let videoUrlString = post.mediaUrls.first,
+           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "localhost")) {
+            VideoThumbnailView(videoUrl: videoUrl)
+                .frame(width: itemSize, height: itemSize)
+                .clipped()
+        } else {
+            imagePlaceholder
+        }
+    }
+    
+    private var imagePlaceholder: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.3))
+            .frame(width: itemSize, height: itemSize)
+            .overlay(
+                Image(systemName: post.isVideo ? "video.slash" : "photo")
+                    .foregroundColor(.gray)
+            )
+    }
 }
 
 // MARK: - ViewModel
@@ -446,20 +507,38 @@ class ProfessionalProfileViewModel: ObservableObject {
     @Published var videoPosts: [Post] = []
     @Published var imagePosts: [Post] = []
     @Published var isLoading = false
+    @Published var errorMessage: String?
     
-    func loadProfessionalPosts(userId: String) async {
+    func loadProfessionalPosts(professionalId: String) async {
         isLoading = true
+        errorMessage = nil
         
         do {
-            allPosts = try await PostsAPI.shared.getPostsByUserId(userId: userId)
+            print("📍 Loading posts for professional: \(professionalId)")
+            
+            // Fetch all posts and filter by ownerId
+            let fetchedPosts = try await PostsAPI.shared.getAllPosts()
+            
+            // Filter posts belonging to this professional
+            allPosts = fetchedPosts.filter { $0.ownerId == professionalId }
+            
+            // Sort by creation date (newest first)
+            allPosts.sort { post1, post2 in
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                let date1 = formatter.date(from: post1.createdAt) ?? Date.distantPast
+                let date2 = formatter.date(from: post2.createdAt) ?? Date.distantPast
+                return date1 > date2
+            }
             
             // Filter posts by media type
             videoPosts = allPosts.filter { $0.isVideo }
             imagePosts = allPosts.filter { !$0.isVideo }
             
-            print("✅ Loaded \\(allPosts.count) posts: \\(videoPosts.count) videos, \\(imagePosts.count) images")
+            print("✅ Loaded \(allPosts.count) posts for professional: \(videoPosts.count) videos, \(imagePosts.count) images")
         } catch {
-            print("❌ Failed to load professional posts: \\(error)")
+            errorMessage = error.localizedDescription
+            print("❌ Failed to load professional posts: \(error)")
         }
         
         isLoading = false

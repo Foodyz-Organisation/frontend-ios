@@ -3,15 +3,23 @@ import SwiftUI
 /// Card component for displaying user posts (Instagram-like)
 struct UserPostCard: View {
     let post: Post
-    @State private var isLiked = false
-    @State private var isBookmarked = false
+    @State private var isLiked: Bool
+    @State private var isBookmarked: Bool
+    
+    init(post: Post) {
+        self.post = post
+        // Initialize isLiked from LikesManager
+        _isLiked = State(initialValue: LikesManager.shared.isLiked(postId: post.id))
+        // Initialize isBookmarked from SavesManager
+        _isBookmarked = State(initialValue: SavesManager.shared.isSaved(postId: post.id))
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // MARK: - Header (User info)
             HStack(spacing: 12) {
                 // Profile picture
-                if let profileUrl = post.userId?.profilePictureUrl, !profileUrl.isEmpty, let url = URL(string: profileUrl) {
+                if let profileUrl = post.owner?.profilePictureUrl, !profileUrl.isEmpty, let url = URL(string: profileUrl) {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
@@ -43,18 +51,18 @@ struct UserPostCard: View {
                         ))
                         .frame(width: 40, height: 40)
                         .overlay(
-                            Text(post.userId?.username.prefix(1).uppercased() ?? "U")
+                            Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
                         )
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.userId?.username ?? "Unknown User")
+                    Text(post.owner?.displayName ?? "Unknown User")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Color(hex: "#1F2937"))
                     
-                    if let fullName = post.userId?.fullName {
+                    if let fullName = post.owner?.fullName {
                         Text(fullName)
                             .font(.caption)
                             .foregroundColor(.gray)
@@ -132,11 +140,15 @@ struct UserPostCard: View {
             
             // MARK: - Action Buttons
             HStack(spacing: 16) {
-                Button(action: { isLiked.toggle() }) {
+                Button(action: {
+                    Task {
+                        await toggleLike()
+                    }
+                }) {
                     HStack(spacing: 4) {
                         Image(systemName: isLiked ? "heart.fill" : "heart")
                             .foregroundColor(isLiked ? .red : Color(hex: "#1F2937"))
-                        Text("\(post.likeCount + (isLiked ? 1 : 0))")
+                        Text("\(currentLikeCount)")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(Color(hex: "#1F2937"))
                     }
@@ -159,7 +171,11 @@ struct UserPostCard: View {
                 
                 Spacer()
                 
-                Button(action: { isBookmarked.toggle() }) {
+                Button(action: {
+                    Task {
+                        await toggleBookmark()
+                    }
+                }) {
                     Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                         .foregroundColor(isBookmarked ? Color(hex: "#F59E0B") : Color(hex: "#1F2937"))
                 }
@@ -171,7 +187,7 @@ struct UserPostCard: View {
             // MARK: - Caption
             if !post.caption.isEmpty {
                 HStack(alignment: .top, spacing: 4) {
-                    Text(post.userId?.username ?? "User")
+                    Text(post.owner?.displayName ?? "User")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Color(hex: "#1F2937"))
                     
@@ -196,6 +212,115 @@ struct UserPostCard: View {
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var currentLikeCount: Int {
+        post.likeCount + (isLiked ? 1 : 0)
+    }
+    
+    // MARK: - Actions
+    
+    private func toggleBookmark() async {
+        // Don't optimistically update - wait for API success
+        let previousBookmarkedState = isBookmarked
+        
+        print("🔖 Toggling bookmark - Post ID: \(post.id), Current state: \(previousBookmarkedState)")
+        
+        do {
+            if previousBookmarkedState {
+                // Unsave
+                print("🔖 Unsave request for post: \(post.id)")
+                _ = try await PostsAPI.shared.unsavePost(postId: post.id)
+                // Only update UI and local storage if API call succeeds
+                isBookmarked = false
+                SavesManager.shared.removeSave(postId: post.id)
+                print("✅ Post unsaved successfully")
+            } else {
+                // Save
+                print("🔖 Save request for post: \(post.id)")
+                _ = try await PostsAPI.shared.savePost(postId: post.id)
+                // Only update UI and local storage if API call succeeds
+                isBookmarked = true
+                SavesManager.shared.addSave(postId: post.id)
+                print("✅ Post saved successfully")
+            }
+            // Notify parent to refresh
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshSavedPosts"), object: nil)
+        } catch {
+            // Don't update UI - keep previous state
+            print("❌ Error toggling bookmark: \(error)")
+            print("❌ Error details: \(error.localizedDescription)")
+            
+            // Check if it's a connection error
+            let errorString = error.localizedDescription.lowercased()
+            if errorString.contains("connection refused") || errorString.contains("could not connect") {
+                print("⚠️ Connection error - Backend server may not be running")
+                // Show alert or message to user
+            }
+            
+            // If error is conflict (already saved), it means user has already saved
+            // So we should unsave it instead
+            if errorString.contains("already saved") || errorString.contains("conflict") {
+                // User tried to save but already saved, so unsave it
+                print("⚠️ Post already saved, attempting to unsave...")
+                do {
+                    _ = try await PostsAPI.shared.unsavePost(postId: post.id)
+                    isBookmarked = false
+                    SavesManager.shared.removeSave(postId: post.id)
+                    // Notify parent to refresh
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshSavedPosts"), object: nil)
+                    print("✅ Post unsaved after conflict")
+                } catch {
+                    print("❌ Error unsaving after conflict: \(error)")
+                }
+            }
+        }
+    }
+    
+    private func toggleLike() async {
+        // Optimistically update UI
+        let previousLikedState = isLiked
+        isLiked.toggle()
+        
+        do {
+            if previousLikedState {
+                // Unlike
+                _ = try await PostsAPI.shared.unlikePost(postId: post.id)
+                LikesManager.shared.removeLike(postId: post.id)
+            } else {
+                // Like
+                _ = try await PostsAPI.shared.likePost(postId: post.id)
+                LikesManager.shared.addLike(postId: post.id)
+            }
+            // Notify parent to refresh
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshSavedPosts"), object: nil)
+        } catch {
+            // Revert optimistic update
+            isLiked = previousLikedState
+            
+            // If error is conflict (already liked), it means user has already liked
+            // So we should unlike it instead
+            let errorString = error.localizedDescription.lowercased()
+            if errorString.contains("already liked") || errorString.contains("conflict") {
+                // User tried to like but already liked, so unlike it
+                do {
+                    _ = try await PostsAPI.shared.unlikePost(postId: post.id)
+                    isLiked = false
+                    LikesManager.shared.removeLike(postId: post.id)
+                    // Notify parent to refresh
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+                } catch {
+                    print("Error unliking after conflict: \(error)")
+                }
+            } else {
+                print("Error toggling like: \(error)")
+            }
+        }
     }
     
     // MARK: - Helper Functions
@@ -252,8 +377,9 @@ struct UserPostCard: View {
 // MARK: - Preview
 struct UserPostCard_Previews: PreviewProvider {
     static var previews: some View {
-        let sampleUser = User(
+        let sampleOwner = Owner(
             id: "1",
+            email: "foodlover@example.com",
             username: "foodlover",
             fullName: "Food Lover",
             profilePictureUrl: nil,
@@ -263,7 +389,9 @@ struct UserPostCard_Previews: PreviewProvider {
         
         let samplePost = Post(
             id: "1",
-            userId: sampleUser,
+            ownerId: "1",
+            owner: sampleOwner,
+            ownerModel: .user,
             caption: "Check out this amazing dish! 🍕 #foodie",
             mediaUrls: [],
             mediaType: .image,

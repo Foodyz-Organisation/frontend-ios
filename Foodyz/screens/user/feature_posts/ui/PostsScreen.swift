@@ -1,6 +1,5 @@
 import SwiftUI
 import Combine
-import Combine
 
 // MARK: - PostsScreen
 struct PostsScreen: View {
@@ -135,9 +134,15 @@ class PostsViewModel: ObservableObject {
 // MARK: - RecipeCard
 struct RecipeCard: View {
     let post: Post
-    @State private var isFavorite = false
+    @State private var isFavorite: Bool
     @State private var isBookmarked = false
     @State private var showProfile = false
+    
+    init(post: Post) {
+        self.post = post
+        // Initialize isFavorite from LikesManager
+        _isFavorite = State(initialValue: LikesManager.shared.isLiked(postId: post.id))
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -208,13 +213,13 @@ struct RecipeCard: View {
                 
                 // User info badge (clickable)
                 Button(action: {
-                    if post.userId != nil {
+                    if post.owner != nil {
                         showProfile = true
                     }
                 }) {
                     HStack(spacing: 6) {
                         // User avatar
-                        if let profileUrl = post.userId?.profilePictureUrl,
+                        if let profileUrl = post.owner?.profilePictureUrl,
                            !profileUrl.isEmpty,
                            let url = URL(string: profileUrl) {
                             AsyncImage(url: url) { phase in
@@ -230,7 +235,7 @@ struct RecipeCard: View {
                                         .fill(Color(hex: "#F59E0B"))
                                         .frame(width: 24, height: 24)
                                         .overlay(
-                                            Text(post.userId?.username.prefix(1).uppercased() ?? "U")
+                                            Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
                                                 .font(.system(size: 12, weight: .bold))
                                                 .foregroundColor(.white)
                                         )
@@ -245,13 +250,13 @@ struct RecipeCard: View {
                                 .fill(Color(hex: "#F59E0B"))
                                 .frame(width: 24, height: 24)
                                 .overlay(
-                                    Text(post.userId?.username.prefix(1).uppercased() ?? "U")
+                                    Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
                                         .font(.system(size: 12, weight: .bold))
                                         .foregroundColor(.white)
                                 )
                         }
                         
-                        Text(post.userId?.username ?? "User")
+                        Text(post.owner?.displayName ?? "User")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(Color(hex: "#1F2937"))
                     }
@@ -267,15 +272,7 @@ struct RecipeCard: View {
                     Spacer()
                     Button {
                         Task {
-                            do {
-                                try await PostsAPI.shared.likePost(postId: post.id)
-                                isFavorite.toggle()
-                                print("✅ Like toggled successfully")
-                                // Refresh the posts feed to show updated like count
-                                NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
-                            } catch {
-                                print("❌ Failed to toggle like: \(error)")
-                            }
+                            await toggleLike()
                         }
                     } label: {
                         Image(systemName: isFavorite ? "heart.fill" : "heart")
@@ -379,7 +376,7 @@ struct RecipeCard: View {
         .cornerRadius(24)
         .shadow(radius: 4)
         .navigationDestination(isPresented: $showProfile) {
-            if let userId = post.userId?.id {
+            if let userId = post.owner?.id {
                 UserProfileView(userId: userId)
             }
         }
@@ -429,6 +426,49 @@ struct RecipeCard: View {
         } else {
             let m = Double(count) / 1_000_000.0
             return String(format: "%.1fM", m)
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func toggleLike() async {
+        // Optimistically update UI
+        let previousLikedState = isFavorite
+        isFavorite.toggle()
+        
+        do {
+            if previousLikedState {
+                // Unlike
+                _ = try await PostsAPI.shared.unlikePost(postId: post.id)
+                LikesManager.shared.removeLike(postId: post.id)
+            } else {
+                // Like
+                _ = try await PostsAPI.shared.likePost(postId: post.id)
+                LikesManager.shared.addLike(postId: post.id)
+            }
+            // Refresh the posts feed to show updated like count
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+        } catch {
+            // Revert optimistic update
+            isFavorite = previousLikedState
+            
+            // If error is conflict (already liked), it means user has already liked
+            // So we should unlike it instead
+            let errorString = error.localizedDescription.lowercased()
+            if errorString.contains("already liked") || errorString.contains("conflict") {
+                // User tried to like but already liked, so unlike it
+                do {
+                    _ = try await PostsAPI.shared.unlikePost(postId: post.id)
+                    isFavorite = false
+                    LikesManager.shared.removeLike(postId: post.id)
+                    // Refresh the posts feed
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+                } catch {
+                    print("Error unliking after conflict: \(error)")
+                }
+            } else {
+                print("❌ Failed to toggle like: \(error)")
+            }
         }
     }
 }

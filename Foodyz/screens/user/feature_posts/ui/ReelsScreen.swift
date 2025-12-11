@@ -73,6 +73,17 @@ struct ReelPlayerView: View {
     let post: Post
     @State private var player: AVPlayer?
     @State private var isMuted = false
+    @State private var isPlaying = true
+    @State private var isLiked: Bool
+    @State private var currentLikeCount: Int
+    @State private var showComments = false
+    
+    init(post: Post) {
+        self.post = post
+        // Initialize isLiked from LikesManager
+        _isLiked = State(initialValue: LikesManager.shared.isLiked(postId: post.id))
+        _currentLikeCount = State(initialValue: post.likeCount)
+    }
     
     var body: some View {
         ZStack {
@@ -83,15 +94,18 @@ struct ReelPlayerView: View {
                             player = AVPlayer(url: url)
                         }
                         player?.play()
+                        isPlaying = true
                         
                         // Loop video
                         NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player?.currentItem, queue: .main) { _ in
                             player?.seek(to: .zero)
                             player?.play()
+                            isPlaying = true
                         }
                     }
                     .onDisappear {
                         player?.pause()
+                        isPlaying = false
                     }
             } else {
                 Color.black
@@ -105,7 +119,7 @@ struct ReelPlayerView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         // User Info
                         HStack {
-                            if let profileUrl = post.userId?.profilePictureUrl, let url = URL(string: profileUrl) {
+                            if let profileUrl = post.owner?.profilePictureUrl, let url = URL(string: profileUrl) {
                                 AsyncImage(url: url) { image in
                                     image.resizable().scaledToFill()
                                 } placeholder: {
@@ -117,10 +131,10 @@ struct ReelPlayerView: View {
                                 Circle()
                                     .fill(Color.gray)
                                     .frame(width: 32, height: 32)
-                                    .overlay(Text(post.userId?.username.prefix(1).uppercased() ?? "U").foregroundColor(.white))
+                                    .overlay(Text(post.owner?.displayName.prefix(1).uppercased() ?? "U").foregroundColor(.white))
                             }
                             
-                            Text(post.userId?.username ?? "Unknown")
+                            Text(post.owner?.displayName ?? "Unknown")
                                 .font(.headline)
                                 .foregroundColor(.white)
                             
@@ -159,8 +173,24 @@ struct ReelPlayerView: View {
                     
                     // Side Actions
                     VStack(spacing: 20) {
-                        ActionButtons(icon: "heart", text: "\(post.likeCount)")
-                        ActionButtons(icon: "bubble.right", text: "\(post.commentCount)")
+                        Button(action: {
+                            Task {
+                                await toggleLike()
+                            }
+                        }) {
+                            ActionButtons(
+                                icon: isLiked ? "heart.fill" : "heart",
+                                text: "\(currentLikeCount)",
+                                isLiked: isLiked
+                            )
+                        }
+                        
+                        Button(action: {
+                            showComments = true
+                        }) {
+                            ActionButtons(icon: "bubble.right", text: "\(post.commentCount)")
+                        }
+                        
                         ActionButtons(icon: "paperplane", text: nil)
                         
                         Button(action: {
@@ -172,7 +202,7 @@ struct ReelPlayerView: View {
                         }
                         
                         // Music Album Art (Rotating)
-                        if let profileUrl = post.userId?.profilePictureUrl, let url = URL(string: profileUrl) {
+                        if let profileUrl = post.owner?.profilePictureUrl, let url = URL(string: profileUrl) {
                             AsyncImage(url: url) { image in
                                 image.resizable().scaledToFill()
                             } placeholder: {
@@ -193,8 +223,68 @@ struct ReelPlayerView: View {
         }
         .background(Color.black)
         .onTapGesture {
-            isMuted.toggle()
-            player?.isMuted = isMuted
+            // Toggle play/pause on tap
+            if isPlaying {
+                player?.pause()
+                isPlaying = false
+            } else {
+                player?.play()
+                isPlaying = true
+            }
+        }
+        .sheet(isPresented: $showComments) {
+            NavigationStack {
+                ReelCommentsView(postId: post.id)
+            }
+        }
+    }
+    
+    // MARK: - Actions
+    
+    private func toggleLike() async {
+        // Optimistically update UI
+        let previousLikedState = isLiked
+        let previousLikeCount = currentLikeCount
+        isLiked.toggle()
+        currentLikeCount += previousLikedState ? -1 : 1
+        
+        do {
+            if previousLikedState {
+                // Unlike
+                let updatedPost = try await PostsAPI.shared.unlikePost(postId: post.id)
+                currentLikeCount = updatedPost.likeCount
+                LikesManager.shared.removeLike(postId: post.id)
+            } else {
+                // Like
+                let updatedPost = try await PostsAPI.shared.likePost(postId: post.id)
+                currentLikeCount = updatedPost.likeCount
+                LikesManager.shared.addLike(postId: post.id)
+            }
+            // Notify parent to refresh
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+        } catch {
+            // Revert optimistic update
+            isLiked = previousLikedState
+            currentLikeCount = previousLikeCount
+            
+            // If error is conflict (already liked), it means user has already liked
+            // So we should unlike it instead
+            let errorString = error.localizedDescription.lowercased()
+            if errorString.contains("already liked") || errorString.contains("conflict") {
+                // User tried to like but already liked, so unlike it
+                do {
+                    let updatedPost = try await PostsAPI.shared.unlikePost(postId: post.id)
+                    currentLikeCount = updatedPost.likeCount
+                    isLiked = false
+                    LikesManager.shared.removeLike(postId: post.id)
+                    // Notify parent to refresh
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+                } catch {
+                    print("Error unliking after conflict: \(error)")
+                }
+            } else {
+                print("Error toggling like: \(error)")
+            }
         }
     }
 }
@@ -202,12 +292,13 @@ struct ReelPlayerView: View {
 struct ActionButtons: View {
     var icon: String
     var text: String?
+    var isLiked: Bool = false
     
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.title)
-                .foregroundColor(.white)
+                .foregroundColor(isLiked ? .red : .white)
             
             if let text = text {
                 Text(text)

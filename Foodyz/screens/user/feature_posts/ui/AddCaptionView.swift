@@ -198,10 +198,15 @@ struct AddCaptionView: View {
             // Step 2: Determine media type
             let mediaType: MediaType = selectedMedia.first?.isVideo == true ? .reel : .image
             
-            // Step 3: Create post
+            // Step 3: Determine owner type based on user role
+            let userRole = UserSession.shared.userRole ?? "user"
+            let ownerType = userRole == "professional" ? "ProfessionalAccount" : "UserAccount"
+            
+            // Step 4: Create post
             uploadProgress = 70
             let post = try await PostsAPI.shared.createPost(
                 userId: userId,
+                ownerType: ownerType,
                 caption: caption,
                 mediaUrls: uploadResponse.urls,
                 mediaType: mediaType

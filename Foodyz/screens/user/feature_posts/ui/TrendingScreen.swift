@@ -129,7 +129,7 @@ struct TrendingPostView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         // User Info
                         HStack {
-                            if let profileUrl = post.userId?.profilePictureUrl, let url = URL(string: profileUrl) {
+                            if let profileUrl = post.owner?.profilePictureUrl, let url = URL(string: profileUrl) {
                                 AsyncImage(url: url) { image in
                                     image.resizable().scaledToFill()
                                 } placeholder: {
@@ -141,10 +141,10 @@ struct TrendingPostView: View {
                                 Circle()
                                     .fill(Color.gray)
                                     .frame(width: 32, height: 32)
-                                    .overlay(Text(post.userId?.username.prefix(1).uppercased() ?? "U").foregroundColor(.white))
+                                    .overlay(Text(post.owner?.displayName.prefix(1).uppercased() ?? "U").foregroundColor(.white))
                             }
                             
-                            Text(post.userId?.username ?? "Unknown")
+                            Text(post.owner?.displayName ?? "Unknown")
                                 .font(.headline)
                                 .foregroundColor(.white)
                             

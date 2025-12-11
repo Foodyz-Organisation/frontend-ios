@@ -6,11 +6,15 @@ enum Screen: Hashable {
     case userSignup
     case homeUser
     case homeProfessional
-    case proSignup // <-- New case for Professional Signup
-    case userProfile(String) // <-- New case for User Profile
-    case postDetails(String) // <-- New case for Post Details
-    case professionalAddContent // <-- New case for Professional Add Content
-    case professionalProfile(String) // <-- New case for Professional Profile
+    case proSignup
+    case userProfile(String)
+    case postDetails(String)
+    case userPostDetail(String) // User's own post detail with edit/delete
+    case userPostsList(String) // User's all posts list view
+    case professionalAddContent
+    case professionalProfile(String)
+    case professionalPostDetail(String) // Professional's own post detail with edit/delete
+    case editPost(String) // Edit post caption
 }
 
 struct AppNavigation: View {
@@ -86,13 +90,33 @@ struct AppNavigation: View {
                     ProfessionalAddContentScreen()
                     
                 case .professionalProfile(let professionalId):
-                    ProfessionalProfileScreen(professionalId: professionalId)
+                    ProfessionalProfileScreen(
+                        professionalId: professionalId,
+                        onPostTap: { postId in
+                            path.append(Screen.professionalPostDetail(postId))
+                        }
+                    )
                     
                 case .userProfile(let userId):
-                    UserProfileView(userId: userId)
+                    UserProfileView(
+                        userId: userId,
+                        path: Binding(get: { path }, set: { newPath in path = newPath })
+                    )
                     
                 case .postDetails(let postId):
                     PostDetailsScreen(postId: postId)
+                    
+                case .userPostDetail(let postId):
+                    UserPostDetailScreen(postId: postId, path: $path)
+                    
+                case .userPostsList(let userId):
+                    UserPostsListView(userId: userId, initialPostId: nil, path: $path)
+                    
+                case .professionalPostDetail(let postId):
+                    ProfessionalPostDetailScreen(postId: postId, path: $path)
+                    
+                case .editPost(let postId):
+                    EditPostScreen(postId: postId, path: $path)
                 }
             }
         }

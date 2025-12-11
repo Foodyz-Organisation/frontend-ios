@@ -93,11 +93,12 @@ class PostsAPI {
     /// Creates a new post
     /// - Parameters:
     ///   - userId: ID of the user creating the post
+    ///   - ownerType: Type of owner ("UserAccount" or "ProfessionalAccount")
     ///   - caption: Post caption
     ///   - mediaUrls: URLs of uploaded media
     ///   - mediaType: Type of media (image, reel, carousel)
     /// - Returns: Created Post object
-    func createPost(userId: String, caption: String, mediaUrls: [String], mediaType: MediaType) async throws -> Post {
+    func createPost(userId: String, ownerType: String, caption: String, mediaUrls: [String], mediaType: MediaType) async throws -> Post {
         guard let url = URL(string: PostsAPIConstants.baseURL) else {
             throw PostsError.invalidURL
         }
@@ -106,6 +107,7 @@ class PostsAPI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        request.setValue(ownerType, forHTTPHeaderField: "x-owner-type")
         
         let createPostRequest = CreatePostRequest(
             caption: caption,
@@ -167,12 +169,21 @@ class PostsAPI {
         }
     }
     
-    // MARK: - Get Posts by User ID
-    /// Fetches all posts by a specific user
-    /// - Parameter userId: ID of the user
-    /// - Returns: Array of Post objects
-    func getPostsByUserId(userId: String) async throws -> [Post] {
-        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/user/\(userId)") else {
+    // MARK: - Get Trending Posts
+    /// Fetches trending posts from the server based on interactivity score
+    /// - Parameter limit: Maximum number of trending posts to return (default: 10)
+    /// - Returns: Array of Post objects sorted by interactivity score (likes + comments + saves)
+    func getTrendingPosts(limit: Int = 10) async throws -> [Post] {
+        guard var urlComponents = URLComponents(string: "\(PostsAPIConstants.baseURL)/trends") else {
+            throw PostsError.invalidURL
+        }
+        
+        // Add limit query parameter
+        urlComponents.queryItems = [
+            URLQueryItem(name: "limit", value: String(limit))
+        ]
+        
+        guard let url = urlComponents.url else {
             throw PostsError.invalidURL
         }
         
@@ -191,26 +202,9 @@ class PostsAPI {
             return try JSONDecoder().decode([Post].self, from: data)
         } catch {
             print("Decoding error: \(error)")
+            print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
             throw PostsError.decodingError
         }
-    }
-    
-    // MARK: - Get Trending Posts
-    /// Fetches trending posts from the server
-    /// - Returns: Array of Post objects
-    func getTrendingPosts() async throws -> [Post] {
-        // Fallback to client-side sorting since backend /trending endpoint is conflicting with /:id
-        let allPosts = try await getAllPosts()
-        
-        // Sort by engagement (likes + comments + saves)
-        let sortedPosts = allPosts.sorted { post1, post2 in
-            let engagement1 = post1.likeCount + post1.commentCount + post1.saveCount
-            let engagement2 = post2.likeCount + post2.commentCount + post2.saveCount
-            return engagement1 > engagement2
-        }
-        
-        // Return top 5 most interactive posts
-        return Array(sortedPosts.prefix(5))
     }
     
     // MARK: - Get Single Post
@@ -237,6 +231,80 @@ class PostsAPI {
             print("Decoding error: \(error)")
             throw PostsError.decodingError
         }
+    }
+    
+    // MARK: - Update Post
+    /// Updates a post's caption
+    /// - Parameters:
+    ///   - postId: ID of the post to update
+    ///   - caption: New caption text
+    func updatePost(postId: String, caption: String) async throws {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)") else {
+            throw PostsError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        if let userId = UserSession.shared.userId {
+            request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        }
+        
+        // Add owner type header based on user role
+        let userRole = UserSession.shared.userRole ?? "user"
+        let ownerType = userRole == "professional" ? "ProfessionalAccount" : "UserAccount"
+        request.setValue(ownerType, forHTTPHeaderField: "x-owner-type")
+        
+        let body = ["caption": caption]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError(message)
+        }
+        
+        print("✅ Post updated successfully")
+    }
+    
+    // MARK: - Delete Post
+    /// Deletes a post
+    /// - Parameter postId: ID of the post to delete
+    func deletePost(postId: String) async throws {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)") else {
+            throw PostsError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        if let userId = UserSession.shared.userId {
+            request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        }
+        
+        // Add owner type header based on user role
+        let userRole = UserSession.shared.userRole ?? "user"
+        let ownerType = userRole == "professional" ? "ProfessionalAccount" : "UserAccount"
+        request.setValue(ownerType, forHTTPHeaderField: "x-owner-type")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError(message)
+        }
+        
+        print("✅ Post deleted successfully")
     }
     
     // MARK: - Comments
@@ -276,28 +344,37 @@ class PostsAPI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        if let userId = UserSession.shared.userId {
-            request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        guard let userId = UserSession.shared.userId else {
+            throw PostsError.serverError("User not logged in")
         }
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
         
         let dto = CreateCommentDto(text: text)
         request.httpBody = try JSONEncoder().encode(dto)
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw PostsError.serverError("Failed to create comment")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError("Failed to create comment: \(message)")
         }
         
         do {
             return try JSONDecoder().decode(Comment.self, from: data)
         } catch {
             print("Decoding error: \(error)")
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("Response: \(responseString)")
+            }
             throw PostsError.decodingError
         }
     }
     
-    /// Delete a comment
+    /// Delete a comment (only by the user who created it)
     func deleteComment(commentId: String) async throws {
         guard let url = URL(string: "\(PostsAPIConstants.baseURL)/comments/\(commentId)") else {
             throw PostsError.invalidURL
@@ -306,65 +383,91 @@ class PostsAPI {
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         
-        if let userId = UserSession.shared.userId {
-            request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        guard let userId = UserSession.shared.userId else {
+            throw PostsError.serverError("User not logged in")
+        }
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
         }
         
-        let (_, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw PostsError.serverError("Failed to delete comment")
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError("Failed to delete comment: \(message)")
         }
     }
     
     // MARK: - Interactions
     
-    /// Likes a post
-    func likePost(postId: String) async throws {
-        print("📍 Attempting to like post: \(postId)")
-        
-        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)/likes") else {
-            print("❌ Invalid URL for like")
+    /// Likes a post (adds a like)
+    func likePost(postId: String) async throws -> Post {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)/like") else {
             throw PostsError.invalidURL
         }
         
-        print("📍 Like URL: \(url.absoluteString)")
-        
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        request.httpMethod = "PATCH"  // Backend uses PATCH, not POST
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Add user ID header
-        if let userId = UserSession.shared.userId {
-            request.setValue(userId, forHTTPHeaderField: "x-user-id")
-            print("📍 User ID: \(userId)")
-        } else {
-            print("⚠️ No user ID found")
+        guard let userId = UserSession.shared.userId else {
+            throw PostsError.serverError("User not logged in")
         }
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
         
-        // Send empty JSON body to ensure server treats it as a valid request
         request.httpBody = "{}".data(using: .utf8)
         
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError("Failed to like post: \(message)")
+        }
+        
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            if let httpResponse = response as? HTTPURLResponse {
-                print("📍 Like response status: \(httpResponse.statusCode)")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("📍 Like response body: \(responseString)")
-                }
-                
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    let message = String(data: data, encoding: .utf8) ?? "Unknown error"
-                    print("❌ Like failed: \(message)")
-                    throw PostsError.serverError("Failed to like post: \(message)")
-                }
-            }
-            
-            print("✅ Like successful")
+            return try JSONDecoder().decode(Post.self, from: data)
         } catch {
-            print("❌ Like error: \(error)")
-            throw error
+            print("Decoding error: \(error)")
+            throw PostsError.decodingError
+        }
+    }
+    
+    /// Unlikes a post (removes a like)
+    func unlikePost(postId: String) async throws -> Post {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)/like") else {
+            throw PostsError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        guard let userId = UserSession.shared.userId else {
+            throw PostsError.serverError("User not logged in")
+        }
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError("Failed to unlike post: \(message)")
+        }
+        
+        do {
+            return try JSONDecoder().decode(Post.self, from: data)
+        } catch {
+            print("Decoding error: \(error)")
+            throw PostsError.decodingError
         }
     }
     
@@ -392,27 +495,176 @@ class PostsAPI {
         }
     }
     
-    /// Saves a post
-    func savePost(postId: String) async throws {
-        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)/bookmarks") else {
+    /// Saves a post (bookmark)
+    func savePost(postId: String) async throws -> Post {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)/save") else {
             throw PostsError.invalidURL
         }
         
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        if let userId = UserSession.shared.userId {
-            request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        guard let userId = UserSession.shared.userId else {
+            print("❌ Save Post Error: User not logged in")
+            throw PostsError.serverError("User not logged in")
         }
         
-        // Send empty JSON body
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        
+        print("📌 Saving post - URL: \(url.absoluteString)")
+        print("📌 User ID: \(userId)")
+        print("📌 Post ID: \(postId)")
+        print("📌 HTTP Method: PATCH")
+        print("📌 Headers: x-user-id = \(userId), Content-Type = application/json")
+        
+        // Send empty JSON body (some servers require this for PATCH)
         request.httpBody = "{}".data(using: .utf8)
         
-        let (_, response) = try await URLSession.shared.data(for: request)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw PostsError.serverError("Failed to save post")
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ Save Post Error: No server response")
+                throw PostsError.serverError("No server response")
+            }
+            
+            print("📌 Save Post Response Status: \(httpResponse.statusCode)")
+            print("📌 Response Headers: \(httpResponse.allHeaderFields)")
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print("❌ Save Post Error: Status \(httpResponse.statusCode) - \(message)")
+                
+                // Check for specific error codes
+                if httpResponse.statusCode == 404 {
+                    throw PostsError.serverError("Post not found")
+                } else if httpResponse.statusCode == 409 {
+                    throw PostsError.serverError("User has already saved this post")
+                }
+                
+                throw PostsError.serverError("Failed to save post: \(message)")
+            }
+            
+            do {
+                let savedPost = try JSONDecoder().decode(Post.self, from: data)
+                print("✅ Post saved successfully")
+                print("✅ Updated saveCount: \(savedPost.saveCount)")
+                return savedPost
+            } catch {
+                print("❌ Decoding error: \(error)")
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("❌ Response data: \(responseString)")
+                }
+                throw PostsError.decodingError
+            }
+        } catch let urlError as URLError {
+            print("❌ URL Error: \(urlError.localizedDescription)")
+            print("❌ URL Error Code: \(urlError.code.rawValue)")
+            print("❌ URL Error Domain: \(urlError.localizedDescription)")
+            if urlError.code == .cannotConnectToHost || urlError.code == .networkConnectionLost {
+                throw PostsError.serverError("Cannot connect to server. Please check if the backend is running on \(PostsAPIConstants.baseURL)")
+            }
+            throw PostsError.serverError("Network error: \(urlError.localizedDescription)")
+        } catch {
+            print("❌ Unexpected error: \(error)")
+            print("❌ Error type: \(type(of: error))")
+            throw error
+        }
+    }
+    
+    /// Unsaves a post (removes bookmark)
+    func unsavePost(postId: String) async throws -> Post {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/\(postId)/save") else {
+            throw PostsError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        guard let userId = UserSession.shared.userId else {
+            print("❌ Unsave Post Error: User not logged in")
+            throw PostsError.serverError("User not logged in")
+        }
+        
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        
+        print("📌 Unsaving post - URL: \(url.absoluteString)")
+        print("📌 User ID: \(userId)")
+        print("📌 Post ID: \(postId)")
+        print("📌 HTTP Method: DELETE")
+        print("📌 Headers: x-user-id = \(userId)")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+        
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ Unsave Post Error: No server response")
+                throw PostsError.serverError("No server response")
+            }
+            
+            print("📌 Unsave Post Response Status: \(httpResponse.statusCode)")
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print("❌ Unsave Post Error: Status \(httpResponse.statusCode) - \(message)")
+                throw PostsError.serverError("Failed to unsave post: \(message)")
+            }
+            
+            do {
+                let unsavedPost = try JSONDecoder().decode(Post.self, from: data)
+                print("✅ Post unsaved successfully")
+                return unsavedPost
+            } catch {
+                print("❌ Decoding error: \(error)")
+                print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
+                throw PostsError.decodingError
+            }
+        } catch let urlError as URLError {
+            print("❌ URL Error: \(urlError.localizedDescription)")
+            print("❌ URL Error Code: \(urlError.code.rawValue)")
+            if urlError.code == .cannotConnectToHost || urlError.code == .networkConnectionLost {
+                throw PostsError.serverError("Cannot connect to server. Please check if the backend is running on \(PostsAPIConstants.baseURL)")
+            }
+            throw PostsError.serverError("Network error: \(urlError.localizedDescription)")
+        } catch {
+            print("❌ Unexpected error: \(error)")
+            print("❌ Error type: \(type(of: error))")
+            throw error
+        }
+    }
+    
+    /// Gets all saved posts for the current user
+    func getSavedPosts() async throws -> [Post] {
+        guard let url = URL(string: "\(PostsAPIConstants.baseURL)/saved") else {
+            throw PostsError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        guard let userId = UserSession.shared.userId else {
+            throw PostsError.serverError("User not logged in")
+        }
+        request.setValue(userId, forHTTPHeaderField: "x-user-id")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PostsError.serverError("No server response")
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw PostsError.serverError("Failed to get saved posts: \(message)")
+        }
+        
+        do {
+            return try JSONDecoder().decode([Post].self, from: data)
+        } catch {
+            print("Decoding error: \(error)")
+            print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
+            throw PostsError.decodingError
         }
     }
     

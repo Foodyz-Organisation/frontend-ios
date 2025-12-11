@@ -4,8 +4,20 @@ import Combine
 /// Basic user profile view showing user info and their posts
 struct UserProfileView: View {
     let userId: String
+    var path: Binding<NavigationPath>?
     @StateObject private var viewModel = UserProfileViewModel()
     @Environment(\.dismiss) var dismiss
+    @State private var selectedTab: UserProfileTab = .posts
+    
+    // Check if this is the current user's own profile
+    var isOwnProfile: Bool {
+        UserSession.shared.userId == userId
+    }
+    
+    init(userId: String, path: Binding<NavigationPath>? = nil) {
+        self.userId = userId
+        self.path = path
+    }
     
     var body: some View {
         ZStack {
@@ -53,7 +65,7 @@ struct UserProfileView: View {
                                 ))
                                 .frame(width: 100, height: 100)
                                 .overlay(
-                                    Text(viewModel.user?.username.prefix(1).uppercased() ?? "U")
+                                    Text(viewModel.user?.displayName.prefix(1).uppercased() ?? "U")
                                         .font(.system(size: 40, weight: .bold))
                                         .foregroundColor(.white)
                                 )
@@ -61,7 +73,7 @@ struct UserProfileView: View {
                         
                         // Username & Full Name
                         VStack(spacing: 4) {
-                            Text(viewModel.user?.username ?? "Loading...")
+                            Text(viewModel.user?.displayName ?? "Loading...")
                                 .font(.system(size: 24, weight: .bold))
                                 .foregroundColor(Color(hex: "#1F2937"))
                             
@@ -111,50 +123,119 @@ struct UserProfileView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     
-                    // Posts Grid Header
-                    HStack {
-                        Text("Posts")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(Color(hex: "#1F2937"))
-                        Spacer()
+                    // Tab Switcher
+                    HStack(spacing: 0) {
+                        Button(action: {
+                            selectedTab = .posts
+                        }) {
+                            VStack(spacing: 4) {
+                                Text("Posts")
+                                    .font(.system(size: 16, weight: selectedTab == .posts ? .bold : .regular))
+                                    .foregroundColor(selectedTab == .posts ? Color(hex: "#1F2937") : .gray)
+                                
+                                Rectangle()
+                                    .fill(selectedTab == .posts ? Color(hex: "#F59E0B") : Color.clear)
+                                    .frame(height: 2)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        
+                        Button(action: {
+                            selectedTab = .saves
+                        }) {
+                            VStack(spacing: 4) {
+                                Text("Saves")
+                                    .font(.system(size: 16, weight: selectedTab == .saves ? .bold : .regular))
+                                    .foregroundColor(selectedTab == .saves ? Color(hex: "#1F2937") : .gray)
+                                
+                                Rectangle()
+                                    .fill(selectedTab == .saves ? Color(hex: "#F59E0B") : Color.clear)
+                                    .frame(height: 2)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 24)
                     .padding(.bottom, 12)
                     
-                    // Posts Grid
-                    if viewModel.isLoading {
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                                .tint(Color(hex: "#F59E0B"))
-                            Text("Loading posts...")
-                                .foregroundColor(.gray)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
-                    } else if viewModel.posts.isEmpty {
-                        VStack(spacing: 16) {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .font(.system(size: 60))
-                                .foregroundColor(.gray.opacity(0.5))
-                            Text("No posts yet")
-                                .font(.headline)
-                                .foregroundColor(.gray)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 60)
-                    } else {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 2),
-                            GridItem(.flexible(), spacing: 2),
-                            GridItem(.flexible(), spacing: 2)
-                        ], spacing: 2) {
-                            ForEach(viewModel.posts) { post in
-                                PostGridItem(post: post)
+                    // Content based on selected tab
+                    if selectedTab == .posts {
+                        // Posts Grid
+                        if viewModel.isLoading {
+                            VStack(spacing: 16) {
+                                ProgressView()
+                                    .scaleEffect(1.5)
+                                    .tint(Color(hex: "#F59E0B"))
+                                Text("Loading posts...")
+                                    .foregroundColor(.gray)
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 60)
+                        } else if viewModel.posts.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: "photo.on.rectangle.angled")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(.gray.opacity(0.5))
+                                Text("No posts yet")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 60)
+                        } else {
+                            LazyVGrid(columns: [
+                                GridItem(.flexible(), spacing: 2),
+                                GridItem(.flexible(), spacing: 2),
+                                GridItem(.flexible(), spacing: 2)
+                            ], spacing: 2) {
+                                ForEach(viewModel.posts) { post in
+                                    PostGridItem(post: post, isOwnProfile: isOwnProfile)
+                                        .onTapGesture {
+                                            if isOwnProfile, let path = path {
+                                                // Navigate to all posts list view
+                                                path.wrappedValue.append(Screen.userPostsList(userId))
+                                            }
+                                        }
+                                }
+                            }
+                            .padding(.horizontal, 16)
                         }
-                        .padding(.horizontal, 16)
+                    } else {
+                        // Saved Posts Grid
+                        if viewModel.isLoadingSaves {
+                            VStack(spacing: 16) {
+                                ProgressView()
+                                    .scaleEffect(1.5)
+                                    .tint(Color(hex: "#F59E0B"))
+                                Text("Loading saved posts...")
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 60)
+                        } else if viewModel.savedPosts.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: "bookmark")
+                                    .font(.system(size: 60))
+                                    .foregroundColor(.gray.opacity(0.5))
+                                Text("No saved posts yet")
+                                    .font(.headline)
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 60)
+                        } else {
+                            LazyVGrid(columns: [
+                                GridItem(.flexible(), spacing: 2),
+                                GridItem(.flexible(), spacing: 2),
+                                GridItem(.flexible(), spacing: 2)
+                            ], spacing: 2) {
+                                ForEach(viewModel.savedPosts) { post in
+                                    PostGridItem(post: post, isOwnProfile: false)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
                     }
                     
                     Spacer(minLength: 40)
@@ -180,12 +261,32 @@ struct UserProfileView: View {
                 await viewModel.loadUserProfile(userId: userId)
             }
         }
+        .onChange(of: selectedTab) { newTab in
+            if newTab == .saves && viewModel.savedPosts.isEmpty && !viewModel.isLoadingSaves {
+                Task {
+                    await viewModel.loadSavedPosts()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshSavedPosts"))) { _ in
+            if selectedTab == .saves {
+                Task {
+                    await viewModel.loadSavedPosts()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshUserPosts"))) { _ in
+            Task {
+                await viewModel.loadUserProfile(userId: userId)
+            }
+        }
     }
 }
 
 // MARK: - Post Grid Item
 struct PostGridItem: View {
     let post: Post
+    let isOwnProfile: Bool
     
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -230,12 +331,20 @@ struct PostGridItem: View {
     }
 }
 
+// MARK: - User Profile Tab
+enum UserProfileTab {
+    case posts
+    case saves
+}
+
 // MARK: - UserProfileViewModel
 @MainActor
 class UserProfileViewModel: ObservableObject {
-    @Published var user: User?
+    @Published var user: Owner?
     @Published var posts: [Post] = []
+    @Published var savedPosts: [Post] = []
     @Published var isLoading = false
+    @Published var isLoadingSaves = false
     @Published var errorMessage: String?
     
     func loadUserProfile(userId: String) async {
@@ -243,8 +352,11 @@ class UserProfileViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // Fetch user's posts
-            let userPosts = try await PostsAPI.shared.getPostsByUserId(userId: userId)
+            // Fetch all posts and filter by ownerId
+            let allPosts = try await PostsAPI.shared.getAllPosts()
+            
+            // Filter posts belonging to this user
+            let userPosts = allPosts.filter { $0.ownerId == userId }
             
             // Sort by creation date (newest first)
             posts = userPosts.sorted { post1, post2 in
@@ -258,8 +370,8 @@ class UserProfileViewModel: ObservableObject {
             }
             
             // Extract user info from first post
-            if let firstPost = posts.first, let postUser = firstPost.userId {
-                user = postUser
+            if let firstPost = posts.first, let postOwner = firstPost.owner {
+                user = postOwner
             }
             
         } catch {
@@ -273,13 +385,31 @@ class UserProfileViewModel: ObservableObject {
         
         isLoading = false
     }
+    
+    func loadSavedPosts() async {
+        isLoadingSaves = true
+        errorMessage = nil
+        
+        do {
+            savedPosts = try await PostsAPI.shared.getSavedPosts()
+        } catch {
+            if let postsError = error as? PostsError {
+                errorMessage = postsError.localizedDescription
+            } else {
+                errorMessage = error.localizedDescription
+            }
+            print("Error loading saved posts: \(error)")
+        }
+        
+        isLoadingSaves = false
+    }
 }
 
 // MARK: - Preview
 struct UserProfileView_Previews: PreviewProvider {
     static var previews: some View {
         NavigationStack {
-            UserProfileView(userId: "sample-user-id")
+            UserProfileView(userId: "sample-user-id", path: nil)
         }
     }
 }

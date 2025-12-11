@@ -45,6 +45,11 @@ class UserSession: ObservableObject {
         UserDefaults.standard.removeObject(forKey: userIdKey)
         UserDefaults.standard.removeObject(forKey: userEmailKey)
         UserDefaults.standard.removeObject(forKey: userRoleKey)
+        
+        // Clear liked posts
+        LikesManager.shared.clearLikes()
+        // Clear saved posts
+        SavesManager.shared.clearSaves()
     }
     
     /// Check if user is logged in
