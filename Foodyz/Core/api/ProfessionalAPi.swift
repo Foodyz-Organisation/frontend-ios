@@ -15,6 +15,9 @@ class ProfessionalApi {
     ) {
         Task {
             do {
+                print("🌐 ProfessionalApi Request:")
+                print("   URL: \(url.absoluteString)")
+                
                 var request = URLRequest(url: url)
                 request.httpMethod = "GET"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -22,23 +25,36 @@ class ProfessionalApi {
                 let (data, response) = try await URLSession.shared.data(for: request)
                 
                 guard let httpResponse = response as? HTTPURLResponse else {
+                    print("❌ Not an HTTP response")
                     return completion(.failure(.networkError(URLError(.unknown))))
+                }
+                
+                print("📥 ProfessionalApi Response:")
+                print("   Status Code: \(httpResponse.statusCode)")
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("   Response Body: \(responseString)")
                 }
                 
                 switch httpResponse.statusCode {
                 case 200...299:
                     let decoded = try JSONDecoder().decode(T.self, from: data)
+                    print("✅ Successfully decoded \(T.self)")
                     completion(.success(decoded))
                 case 401:
+                    print("❌ Unauthorized (401)")
                     completion(.failure(.unauthorized))
                 case 400:
+                    print("❌ Bad Request (400)")
                     completion(.failure(.badRequest))
                 default:
+                    print("❌ Bad server response: \(httpResponse.statusCode)")
                     completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
                 }
             } catch let urlError as URLError {
+                print("❌ Network error: \(urlError.localizedDescription)")
                 completion(.failure(.networkError(urlError)))
             } catch {
+                print("❌ Decoding error: \(error)")
                 completion(.failure(.decodingError(error)))
             }
         }

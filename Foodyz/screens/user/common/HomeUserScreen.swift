@@ -49,7 +49,7 @@ struct HomeUserScreen: View {
                 TopAppBarView(
                     showNotifications: $showingNotifications,
                     openDrawer: { withAnimation { showingDrawer = true } },
-                    onSearchClick: { print("Search Clicked") },
+                    onSearchClick: { showingSearch = true },
                     onProfileClick: {
                         currentRoute = "profile"
                         onOpenProfile?()
@@ -57,6 +57,10 @@ struct HomeUserScreen: View {
                     onMessagesTap: {
                         currentRoute = "chat"
                         onOpenMessages?()
+                    },
+                    onOrdersClick: {
+                        currentRoute = "orders"
+                        onNavigateToOrders?()
                     }
                 )
 
@@ -126,6 +130,7 @@ struct HomeUserScreen: View {
                 onNavigateToProfessional?(professionalId)
             }
         }
+        .navigationBarBackButtonHidden(true)
     }
 
     // MARK: - Helpers

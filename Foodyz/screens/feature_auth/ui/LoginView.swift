@@ -4,6 +4,9 @@ struct LoginView: View {
     @StateObject private var viewModel = AuthViewModel()
     @State private var showPassword = false
     @State private var showError = false
+    @State private var email = ""
+    @State private var password = ""
+    @State private var rememberMe = false
 
     // Remove onLogin: (() -> Void)? = nil as it seems redundant with onLoginSuccess
     var onSignup: (() -> Void)? = nil
@@ -11,148 +14,216 @@ struct LoginView: View {
     var onLoginSuccess: (AppUserRole) -> Void
 
     var body: some View {
-        // ... (Body content remains the same)
-
-        let gradient = LinearGradient(
-            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-
         ScrollView {
-            VStack(spacing: 16) {
-                // MARK: Logo
+            VStack(spacing: 20) {
+                // Spacer to push content down
+                Spacer()
+                    .frame(height: 60)
+                
+                // Logo
                 ZStack {
                     Circle()
-                        .fill(RadialGradient(
-                            gradient: Gradient(colors: [Color(hex: 0xFFECB3), Color(hex: 0xFFC107)]),
-                            center: .center,
-                            startRadius: 10,
-                            endRadius: 80
-                        ))
-                        .frame(width: 120, height: 120)
-                        .shadow(radius: 5, y: 5)
-                        
+                        .fill(
+                            LinearGradient(
+                                colors: [Color(hex: 0xFFD54F), Color(hex: 0xFFA726)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 100, height: 100)
+                        .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
+                    
                     Image(systemName: "fork.knife")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 48, height: 48)
-                        .foregroundColor(Color.textLight)
+                        .font(.system(size: 45))
+                        .foregroundColor(.white)
                 }
-                // FIX: Reduce large top padding to prevent content from being pushed off-screen
-                // The large padding was causing content to hide behind the navigation bar.
-                .padding(.top, 20)
-
-                // Title
+                .padding(.bottom, 20)
+                
+                // Welcome Text
                 Text("Welcome Back")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(Color.secondaryColor)
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(Color(hex: 0xD97706))
                 
                 Text("Login to continue your food journey")
-                    .foregroundColor(Color.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 24)
-
-                // Email - Assuming CustomTextField and CustomSecureField exist elsewhere
-                CustomTextField(icon: "envelope.fill",
-                                placeholder: "your.email@example.com",
-                                text: $viewModel.email)
+                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
+                    .padding(.bottom, 20)
                 
-                // Password
-                CustomSecureField(icon: "lock.fill",
-                                  placeholder: "Enter your password",
-                                  text: $viewModel.password,
-                                  showPassword: $showPassword)
+                // Email Field
+                HStack(spacing: 12) {
+                    Image(systemName: "envelope.fill")
+                        .foregroundColor(.gray)
+                        .frame(width: 24)
+                    
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                        .autocorrectionDisabled()
+                }
+                .padding()
+                .background(Color(hex: 0xF3F4F6))
+                .cornerRadius(12)
+                .padding(.horizontal, 24)
                 
-                // Forgot Password Link
-                HStack {
-                    Spacer()
-                    Button("Forgot Password?") {
-                        // Action for Forgot Password
+                // Password Field
+                HStack(spacing: 12) {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(.gray)
+                        .frame(width: 24)
+                    
+                    if showPassword {
+                        TextField("Password", text: $password)
+                    } else {
+                        SecureField("Password", text: $password)
                     }
-                    .foregroundColor(Color.secondaryColor)
-                    .font(.caption)
+                    
+                    Button(action: { showPassword.toggle() }) {
+                        Image(systemName: showPassword ? "eye.fill" : "eye.slash.fill")
+                            .foregroundColor(.gray)
+                    }
                 }
-
-                // Error
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .foregroundColor(Color.error)
-                        .font(.body)
-                        .padding(.top, 4)
-                }
-
-                // MARK: Login Button
-                Button(action: loginAction) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(LinearGradient(
-                                colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ))
-                            .frame(height: 56)
-
-                        if viewModel.isLoading {
-                            ProgressView().tint(.white)
-                        } else {
-                            Text("Login")
-                                .foregroundColor(Color.textLight)
-                                .font(.system(size: 18, weight: .bold))
+                .padding()
+                .background(Color(hex: 0xF3F4F6))
+                .cornerRadius(12)
+                .padding(.horizontal, 24)
+                
+                // Remember Me & Forgot Password
+                HStack {
+                    Button(action: {
+                        rememberMe.toggle()
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: rememberMe ? "checkmark.square.fill" : "square")
+                                .foregroundColor(rememberMe ? Color(hex: 0xD97706) : .gray)
+                            Text("Remember Me")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
                         }
                     }
+                    
+                    Spacer()
+                    
+                    Button(action: {}) {
+                        Text("Forgot Password?")
+                            .font(.system(size: 14))
+                            .foregroundColor(Color(hex: 0xD97706))
+                    }
                 }
-                .padding(.vertical, 16)
+                .padding(.horizontal, 24)
+                .padding(.top, 5)
+                
+                // Login Button
+                Button(action: loginAction) {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Text("Login")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: 0xFFC107), Color(hex: 0xFFB300)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .cornerRadius(12)
+                .padding(.horizontal, 24)
+                .padding(.top, 10)
                 .disabled(viewModel.isLoading)
                 
-                // Separator Text
+                // Or continue with
                 Text("Or continue with")
-                    .foregroundColor(Color.textSecondary)
-                    .padding(.bottom, 8)
-
-                // Social Buttons (Placeholder Structure)
-                HStack(spacing: 20) {
-                    SocialButton(iconName: "google", text: "Google")
-                    SocialButton(iconName: "facebook", text: "Facebook")
-                }
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                    .padding(.top, 10)
                 
-                Spacer()
-
-                // Signup Link
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Don't have an account?")
-                            .foregroundColor(Color.textSecondary)
-                        Button(action: { onSignup?() }) {
-                            Text("Register Now")
-                                .foregroundColor(Color.primaryColor)
-                                .fontWeight(.semibold)
+                // Social Login Buttons
+                HStack(spacing: 15) {
+                    // Google Button
+                    Button(action: {}) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "globe")
+                                .foregroundColor(Color(hex: 0x4285F4))
+                            Text("Google")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.black)
                         }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
                     }
-                    Text("Create an account to be able to order/reserve/get a delivery")
-                        .foregroundColor(Color.textSecondary)
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
+                    
+                    // Facebook Button
+                    Button(action: {}) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "globe")
+                                .foregroundColor(Color(hex: 0x1877F2))
+                            Text("Facebook")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                    }
                 }
-                .padding(.bottom, 40)
+                .padding(.horizontal, 24)
+                
+                // Register Section
+                HStack(spacing: 4) {
+                    Text("Don't have an account?")
+                        .font(.system(size: 15))
+                        .foregroundColor(.gray)
+                    Button(action: {
+                        onSignup?()
+                    }) {
+                        Text("Register Now")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(Color(hex: 0xD97706))
+                    }
+                }
+                .padding(.top, 15)
+                
+                Text("Create an account to be able to order/reserve/get a delivery")
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 40)
             }
-            .padding(.horizontal, 24)
         }
-        // CRITICAL FIX: Ignore the top safe area to pull content up under the navigation bar
-        .ignoresSafeArea(.container, edges: .top)
-        .background(backgroundGradient.ignoresSafeArea())
+        .background(Color.white)
+        .navigationBarBackButtonHidden(true)
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
-        } message: { // <-- CORRECT: Use the 'message:' label here.
+        } message: {
             Text(viewModel.errorMessage ?? "")
         }
     }
     
     private func loginAction() {
         Task {
-            await viewModel.login { role, id, token in
-                let userRole: UserRole = role == "professional" ? .professional : .user
-                onLoginSuccess(userRole, id, token)
+            // Update viewModel's email and password from local state variables
+            viewModel.email = email
+            viewModel.password = password
+            await viewModel.login { role in
+                onLoginSuccess(role)
             }
         }
     }

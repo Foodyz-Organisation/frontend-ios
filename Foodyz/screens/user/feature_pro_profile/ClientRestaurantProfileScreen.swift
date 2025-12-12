@@ -88,9 +88,8 @@ struct ProfileContentView: View {
                     
                     if !professional.documents.isEmpty {
                         ManagementCardView(title: "Documents") {
-                            ForEach(professional.documents.indices, id: \.self) { index in
-                                let doc = professional.documents[index]
-                                DocumentRow(document: doc)
+                            ForEach(professional.documents, id: \.self) { doc in
+                                DocumentRow(documentPath: doc)
                             }
                         }
                     }
@@ -190,7 +189,12 @@ struct InfoSectionView: View {
 
 // MARK: - Document Row
 struct DocumentRow: View {
-    let document: ProfessionalDocumentDto
+    let documentPath: String
+    
+    // Extract filename from path
+    private var filename: String {
+        (documentPath as NSString).lastPathComponent
+    }
     
     var body: some View {
         HStack(spacing: 12) {
@@ -199,20 +203,14 @@ struct DocumentRow: View {
                 .frame(width: 20)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(document.filename)
+                Text(filename)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.darkText)
                 
-                if let verified = document.verified {
-                    HStack(spacing: 4) {
-                        Image(systemName: verified ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(verified ? Color(hex: 0xFF10B981) : Color(hex: 0xFFFBBF24))
-                        Text(verified ? "Verified" : "Pending")
-                            .font(.system(size: 12))
-                            .foregroundColor(.inactiveGray)
-                    }
-                }
+                Text(documentPath)
+                    .font(.system(size: 12))
+                    .foregroundColor(.inactiveGray)
+                    .lineLimit(1)
             }
             
             Spacer()

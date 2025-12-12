@@ -35,7 +35,6 @@ struct MenuNavigationItem: Hashable {
 // -----------------------------
 // MARK: - Screen Enum (No change needed)
 // -----------------------------
-
 enum Screen: Hashable {
     case splash
     case login
@@ -51,6 +50,9 @@ enum Screen: Hashable {
     case shoppingCart(String) // Professional ID
     case orderConfirmation(String) // Professional ID
     case orderHistory
+    case chatList(role: AppUserRole)
+    case chatThread(conversationId: String, title: String?)
+    case userProfile
 
     // ... Equatable and Hashable implementations ...
 }
@@ -61,7 +63,7 @@ enum Screen: Hashable {
 // -----------------------------
 struct AppNavigation: View {
     @State private var path = NavigationPath()
-    @StateObject private var authService = AuthService()
+    @StateObject private var sessionManager = SessionManager.shared
     @StateObject private var menuVM = MenuViewModel()
     
     @StateObject private var cartViewModel: CartViewModel
@@ -79,9 +81,9 @@ struct AppNavigation: View {
 
             // Navigation Destinations
             .navigationDestination(for: Screen.self) { screen in
-                let currentProId = authService.professionalId ?? ""
-                // Get current userId safely - using professionalId as userId
-                let currentUserId = authService.professionalId ?? "mock_user_id"
+                let currentProId = sessionManager.userId ?? ""
+                // Get current userId safely
+                let currentUserId = sessionManager.userId ?? "mock_user_id"
 
                 switch screen {
                     
@@ -95,45 +97,17 @@ struct AppNavigation: View {
                 case .login:
                     LoginView(
                         onSignup: { path.append(Screen.userSignup) },
-                        onLoginSuccess: { role, id, token in
-                            authService.setSession(proId: id, token: token)
-                            // Update cart userId when user logs in
-                            cartViewModel.updateUserId(id)
+                        onLoginSuccess: { role in
+                            // Update cart with logged-in user ID
+                            if let userId = sessionManager.userId {
+                                cartViewModel.updateUserId(userId)
+                            }
                             path.removeLast(path.count)
                             switch role {
-    case chatList(role: AppUserRole)
-    case chatThread(conversationId: String, title: String?)
-    case userProfile
-}
-
-struct AppNavigation: View {
-    @State private var path = NavigationPath()
-    
-    var body: some View {
-        NavigationStack(path: $path) {
-            
-            // Root view — Splash screen
-            SplashView(onFinished: {
-                path.append(Screen.login)
-            })
-            
-            .navigationDestination(for: Screen.self) { screen in
-                switch screen {
-                case .splash:
-                    SplashView(onFinished: { path.append(Screen.login) })
-
-                case .login:
-                    LoginView(
-                        onSignup: { path.append(Screen.userSignup) },
-                        onLoginSuccess: { role in
-                            path.removeLast(path.count)
-                            switch role { // <-- match enum, not string
                             case .user:
                                 path.append(Screen.homeUser)
                             case .professional:
                                 path.append(Screen.homeProfessional)
-                            default:
-                                path.append(Screen.login)
                             }
                         }
                     )
@@ -151,11 +125,35 @@ struct AppNavigation: View {
                     
                 case .homeUser:
                     HomeUserScreen(
-                        onNavigateToProfessional: { professionalId in
+                         onNavigateDrawer: { route in
+                             switch route {
+                             case "signup_pro":
+                                 path.append(Screen.proSignup)
+                             case "home":
+                                 path.removeLast(path.count)
+                                 path.append(Screen.homeUser)
+                             case "chat":
+                                 path.append(Screen.chatList(role: AppUserRole.user))
+                             case "profile":
+                                 path.append(Screen.userProfile)
+                             case "login":
+                                 path.removeLast(path.count)
+                                 path.append(Screen.login)
+                             default:
+                                 print("Navigate to \(route)")
+                             }
+                         },
+                         onNavigateToProfessional: { professionalId in
                             path.append(Screen.professionalProfile(professionalId))
                         },
                         onNavigateToOrders: {
                             path.append(Screen.orderHistory)
+                        },
+                        onOpenMessages: {
+                            path.append(Screen.chatList(role: AppUserRole.user))
+                        },
+                        onOpenProfile: {
+                            path.append(Screen.userProfile)
                         }
                     )
                     
@@ -207,6 +205,17 @@ struct AppNavigation: View {
                             // Future: navigate to order details
                         }
                     )
+
+                case .chatList(let role):
+                    ChatListView(role: role) { conversation, resolvedTitle in
+                        path.append(Screen.chatThread(conversationId: conversation.id, title: resolvedTitle))
+                    }
+
+                case .chatThread(let conversationId, let title):
+                    ChatDetailView(conversationId: conversationId, title: title)
+
+                case .userProfile:
+                    UserProfileView()
                     
                 // ===================================
                 // PROFESSIONAL SCREENS
@@ -215,6 +224,12 @@ struct AppNavigation: View {
                 case .homeProfessional:
                     // NOTE: This order (path, professionalId) should match your HomeProfessionalView definition
                     HomeProfessionalView(path: $path, professionalId: currentProId)
+                    /* 
+                    // User snippet version (kept for reference if HomeProfessionalView is updated)
+                    HomeProfessionalView(onOpenMessages: {
+                        path.append(Screen.chatList(role: AppUserRole.professional))
+                    }) 
+                    */
                 case .menu:
                     // 🔴 FIX APPLIED HERE: Swapping the order to professionalId, then path
                     MenuItemManagementScreen(viewModel: menuVM,
@@ -231,7 +246,7 @@ struct AppNavigation: View {
                 }
             }
         }
-        .environmentObject(authService)
+        .environmentObject(sessionManager)
     }
 }
 
@@ -242,62 +257,6 @@ struct AppNavigation_Previews: PreviewProvider {
     static var previews: some View {
         AppNavigation()
             // Add environment object for preview to prevent crashes if child views use it
-            .environmentObject(AuthService())
-
-                case .userSignup:
-                    UserSignupView(onFinishSignup: { path.removeLast() })
-
-                case .homeUser:
-                    HomeUserScreen(
-                        onNavigateDrawer: { route in
-                            switch route {
-                            case "signup_pro":
-                                path.append(Screen.proSignup)
-                            case "home":
-                                path.removeLast(path.count)
-                                path.append(Screen.homeUser)
-                            case "chat":
-                                path.append(Screen.chatList(role: AppUserRole.user))
-                            case "profile":
-                                path.append(Screen.userProfile)
-                            case "login":
-                                path.removeLast(path.count)
-                                path.append(Screen.login)
-                            default:
-                                print("Navigate to \(route)")
-                            }
-                        },
-                        onOpenMessages: {
-                            path.append(Screen.chatList(role: AppUserRole.user))
-                        },
-                        onOpenProfile: {
-                            path.append(Screen.userProfile)
-                        }
-                    )
-
-                case .proSignup:
-                    ProSignupView(onFinish: {
-                        path.removeLast(path.count)
-                        path.append(Screen.homeUser)
-                    })
-
-                case .homeProfessional:
-                    HomeProfessionalView(onOpenMessages: {
-                        path.append(Screen.chatList(role: AppUserRole.professional))
-                    })
-
-                case .chatList(let role):
-                    ChatListView(role: role) { conversation, resolvedTitle in
-                        path.append(Screen.chatThread(conversationId: conversation.id, title: resolvedTitle))
-                    }
-
-                case .chatThread(let conversationId, let title):
-                    ChatDetailView(conversationId: conversationId, title: title)
-
-                case .userProfile:
-                    UserProfileView()
-                }
-            }
-        }
+            .environmentObject(SessionManager.shared)
     }
 }

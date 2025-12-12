@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Order Response
-struct OrderResponse: Codable, Identifiable {
+struct OrderResponse: Codable, Identifiable, Equatable {
     let _id: String
     let userId: String // Will be decoded from either String or Object
     let professionalId: String
@@ -65,7 +65,7 @@ struct OrderResponse: Codable, Identifiable {
 }
 
 // MARK: - Order Item Response
-struct OrderItemResponse: Codable, Identifiable {
+struct OrderItemResponse: Codable, Identifiable, Equatable {
     let menuItemId: String
     let name: String
     let image: String?
@@ -91,13 +91,13 @@ struct OrderItemResponse: Codable, Identifiable {
 }
 
 // MARK: - Chosen Ingredient Response
-struct ChosenIngredientResponse: Codable {
+struct ChosenIngredientResponse: Codable, Equatable {
     let name: String
     let isDefault: Bool
 }
 
 // MARK: - Chosen Option Response
-struct ChosenOptionResponse: Codable {
+struct ChosenOptionResponse: Codable, Equatable {
     let name: String
     let price: Double
 }

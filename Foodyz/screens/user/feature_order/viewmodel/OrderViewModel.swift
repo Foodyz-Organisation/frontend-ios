@@ -74,10 +74,15 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Load Orders by Professional
     func loadOrdersByProfessional(professionalId: String) {
+        guard let token = SessionManager.shared.accessToken else {
+            self.errorMessage = "No access token available"
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
-        repository.getProfessionalOrders(professionalId: professionalId, token: "mock_token") { [weak self] result in
+        repository.getProfessionalOrders(professionalId: professionalId, token: token) { [weak self] result in
             DispatchQueue.main.async {
                 self?.isLoading = false
                 
@@ -94,19 +99,26 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Load Pending Orders (for professionals)
     func loadPendingOrders(professionalId: String) {
+        guard let token = SessionManager.shared.accessToken else {
+            self.errorMessage = "No access token available"
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
-        repository.getPendingOrders(professionalId: professionalId, token: "mock_token") { [weak self] result in
+        repository.getPendingOrders(professionalId: professionalId, token: token) { [weak self] result in
             DispatchQueue.main.async {
                 self?.isLoading = false
                 
                 switch result {
                 case .success(let orders):
                     self?.orders = orders
+                    print("✅ Loaded \(orders.count) pending orders for professional \(professionalId)")
                     
                 case .failure(let error):
                     self?.errorMessage = error.localizedDescription
+                    print("❌ Failed to load pending orders: \(error.localizedDescription)")
                 }
             }
         }
@@ -114,10 +126,16 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Update Order Status
     func updateOrderStatus(orderId: String, status: OrderStatus, completion: @escaping (Bool) -> Void) {
+        guard let token = SessionManager.shared.accessToken else {
+            self.errorMessage = "No access token available"
+            completion(false)
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
-        repository.updateOrderStatus(orderId: orderId, status: status, token: "mock_token") { [weak self] result in
+        repository.updateOrderStatus(orderId: orderId, status: status, token: token) { [weak self] result in
             DispatchQueue.main.async {
                 self?.isLoading = false
                 

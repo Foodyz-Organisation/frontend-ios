@@ -14,7 +14,7 @@ struct ProfessionalDto: Codable, Identifiable {
     let email: String
     let fullName: String?
     let licenseNumber: String?
-    let documents: [ProfessionalDocumentDto]
+    let documents: [String]  // Changed from [ProfessionalDocumentDto] to [String]
     let role: String?
     let isActive: Bool
     let linkedUserId: String?
@@ -37,7 +37,7 @@ struct ProfessionalDto: Codable, Identifiable {
         email = try container.decode(String.self, forKey: .email)
         fullName = try container.decodeIfPresent(String.self, forKey: .fullName)
         licenseNumber = try container.decodeIfPresent(String.self, forKey: .licenseNumber)
-        documents = try container.decodeIfPresent([ProfessionalDocumentDto].self, forKey: .documents) ?? []
+        documents = try container.decodeIfPresent([String].self, forKey: .documents) ?? []  // Changed type
         role = try container.decodeIfPresent(String.self, forKey: .role)
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         linkedUserId = try container.decodeIfPresent(String.self, forKey: .linkedUserId)
