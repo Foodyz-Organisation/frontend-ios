@@ -1,7 +1,6 @@
 import SwiftUI
 
-// MARK: - AppColor Helper
-/// A wrapper around SwiftUI Color to avoid redeclaration conflicts.
+
 struct AppColor {
     var color: Color // Store the actual SwiftUI Color
 
@@ -16,21 +15,13 @@ struct AppColor {
     }
 }
 
-// Extension to allow easy conversion/access to SwiftUI's Color
 extension AppColor {
     // Computed property to return the internal Color instance
     var swiftUIColor: Color {
         return color
     }
 }
-// You can also extend Color for convenience when using AppColor.swiftUIColor is too verbose
-// This allows you to use AppColor.swiftUIColor in most places it's required.
-// For the places where you used 'AppColor(hex: ...)' directly,
-// you will need to append '.swiftUIColor'
-// OR, you can make AppColor conform to ExpressibleByIntegerLiteral and/or CustomStringConvertible,
-// but for simplicity, the computed property is enough.
 
-// ---
 
 struct SplashView: View {
     // MARK: - Properties

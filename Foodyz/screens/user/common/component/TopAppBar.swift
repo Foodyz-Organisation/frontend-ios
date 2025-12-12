@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - TopAppBar Colors (self-contained for this file)
 struct TopAppBarColors {
-    static let background = Color(red: 1.0, green: 0.98, blue: 0.92) // #FFFBEA
+    static let background = Color.white
     static let lightGray = Color(red: 0.94, green: 0.94, blue: 0.94) // #F0F0F0
     static let darkGray = Color(red: 0.2, green: 0.2, blue: 0.2) // #333333
     static let primary = Color(red: 1.0, green: 0.42, blue: 0.0) // #FF6B00
@@ -14,6 +14,8 @@ struct TopAppBarView: View {
     var openDrawer: () -> Void
     var onSearchClick: () -> Void
     var onProfileClick: () -> Void
+    var onMessagesTap: () -> Void // Messages/Chat callback
+    var onOrdersClick: (() -> Void)? = nil // NEW: Navigate to orders
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,11 +30,21 @@ struct TopAppBarView: View {
                         .clipShape(Circle())
                 }
 
-                Text("Foodies")
+                Text("")
                     .font(.system(size: 26, weight: .bold))
                     .foregroundColor(TopAppBarColors.darkGray)
 
                 Spacer()
+
+                // Plus Button (Add)
+                Button(action: { print("Add Clicked") }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(TopAppBarColors.darkGray)
+                        .padding(10)
+                        .background(TopAppBarColors.lightGray)
+                        .clipShape(Circle())
+                }
 
                 // Search Button
                 Button(action: onSearchClick) {
@@ -55,14 +67,9 @@ struct TopAppBarView: View {
                             .clipShape(Circle())
 
                         Circle()
-                            .fill(Color.red)
-                            .frame(width: 14, height: 14)
-                            .overlay(
-                                Text("3")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.white)
-                            )
-                            .offset(x: 6, y: -6)
+                            .fill(Color(red: 1.0, green: 0.67, blue: 0.0))
+                            .frame(width: 8, height: 8)
+                            .offset(x: 4, y: 4)
                     }
                 }
 
@@ -81,7 +88,7 @@ struct TopAppBarView: View {
 
             Divider().padding(.horizontal, 8)
 
-            SecondaryNavBarView()
+            SecondaryNavBarView(onOrdersClick: onOrdersClick, onMessagesClick: onMessagesTap)
         }
         .background(TopAppBarColors.background.ignoresSafeArea(edges: .top))
     }
@@ -89,15 +96,23 @@ struct TopAppBarView: View {
 
 // MARK: - 2. SecondaryNavBarView
 struct SecondaryNavBarView: View {
+    var onOrdersClick: (() -> Void)? = nil
+    var onMessagesClick: (() -> Void)? = nil
+    
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 12) {
             NavBarItem(icon: "house.fill", selected: true)
             NavBarItem(icon: "chart.line.uptrend.xyaxis")
             NavBarItem(icon: "play.fill")
-            NavBarItem(icon: "message.fill")
-            NavBarItem(icon: "dollarsign.circle.fill")
+            NavBarItem(icon: "message.fill", onClick: {
+                onMessagesClick?()
+            })
+            NavBarItem(icon: "dollarsign.circle.fill", onClick: {
+                onOrdersClick?()
+            })
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
         .background(TopAppBarColors.background)
     }
 }
@@ -106,15 +121,20 @@ struct SecondaryNavBarView: View {
 struct NavBarItem: View {
     var icon: String
     var selected: Bool = false
+    var onClick: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 4) {
+        Button(action: {
+            onClick?()
+        }) {
             Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(selected ? TopAppBarColors.primary : .gray)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(selected ? .black : Color.gray)
+                .frame(width: 48, height: 48)
+                .background(selected ? Color(red: 1.0, green: 0.93, blue: 0.60) : Color.clear)
+                .cornerRadius(12)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+        .buttonStyle(PlainButtonStyle()) // Prevents default button styling
     }
 }
 
@@ -132,7 +152,8 @@ struct TopAppBarView_Previews: PreviewProvider {
                     showNotifications: $showingNotifications,
                     openDrawer: { },
                     onSearchClick: { },
-                    onProfileClick: { }
+                    onProfileClick: { },
+                    onMessagesTap: { }
                 )
                 Spacer()
             }

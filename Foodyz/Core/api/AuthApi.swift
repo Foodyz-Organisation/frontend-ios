@@ -1,7 +1,7 @@
 import Foundation
 
 struct APIConstants {
-    static let baseURL = "http://localhost:3000/auth"
+    static let baseURL = "http://127.0.0.1:3000/auth"
 }
 
 enum AuthError: Error, LocalizedError {
@@ -77,8 +77,15 @@ class AuthAPI {
             throw AuthError.serverError("No server response")
         }
         
+        if httpResponse.statusCode == 404 {
+            await MainActor.run { SessionManager.shared.clear() }
+            return
+        }
+
         guard (200...299).contains(httpResponse.statusCode) else {
             throw AuthError.serverError("Logout failed")
         }
+
+        await MainActor.run { SessionManager.shared.clear() }
     }
 }

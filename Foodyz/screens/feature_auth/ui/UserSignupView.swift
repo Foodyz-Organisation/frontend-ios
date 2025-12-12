@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct UserSignupView: View {
     @StateObject private var viewModel = AuthViewModel()
@@ -8,6 +10,9 @@ struct UserSignupView: View {
     @State private var confirmPassword = ""
     @State private var phone = ""
     @State private var address = ""
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var avatarPreview: UIImage?
+    @State private var avatarUploadData: Data?
 
     var onFinishSignup: (() -> Void)? = nil
 
@@ -26,6 +31,46 @@ struct UserSignupView: View {
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 40)
+
+                // MARK: Avatar Picker
+                PhotosPicker(selection: $avatarItem, matching: .images, photoLibrary: .shared()) {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            if let avatarPreview {
+                                Image(uiImage: avatarPreview)
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 22, weight: .medium))
+                                    .foregroundColor(Color(hex: 0x6B7280))
+                            }
+                        }
+                        .frame(width: 64, height: 64)
+                        .background(Color(hex: 0xF3F4F6))
+                        .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Add profile photo")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(Color(hex: 0x111827))
+                            Text("Optional, but it helps professionals recognize you.")
+                                .font(.footnote)
+                                .foregroundColor(.gray)
+                        }
+
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(18)
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
+                }
+                .onChange(of: avatarItem) { _, newValue in
+                    Task { await updateAvatarSelection(with: newValue) }
+                }
 
                 // MARK: Full Name
                 CustomTextField(icon: "person.fill",
@@ -99,9 +144,18 @@ struct UserSignupView: View {
     private func signupAction() {
         viewModel.errorMessage = nil
 
-        guard !fullName.isEmpty,
-              !viewModel.email.isEmpty,
-              !viewModel.password.isEmpty else {
+        // Trim input
+        let cleanFullName = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanEmail = viewModel.email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPassword = viewModel.password.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanConfirmPassword = confirmPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. Validate required fields
+        guard !cleanFullName.isEmpty,
+              !cleanEmail.isEmpty,
+              !cleanPassword.isEmpty else {
             viewModel.errorMessage = "Please fill all required fields."
             return
         }
@@ -111,18 +165,49 @@ struct UserSignupView: View {
             return
         }
 
+        let dataURI = avatarUploadData?.dataURI()
+
         let signupData = SignupRequest(
             username: fullName,
             email: viewModel.email,
             password: viewModel.password,
             phone: phone.isEmpty ? nil : phone,
-            address: address.isEmpty ? nil : address
+            address: address.isEmpty ? nil : address,
+            avatarUrl: dataURI
         )
 
         Task {
             await viewModel.signup(userData: signupData)
             if viewModel.errorMessage == nil {
                 onFinishSignup?()
+            }
+        }
+    }
+}
+
+// MARK: - Avatar Helpers
+private extension UserSignupView {
+    func updateAvatarSelection(with item: PhotosPickerItem?) async {
+        guard let item else {
+            await MainActor.run {
+                avatarPreview = nil
+                avatarUploadData = nil
+            }
+            return
+        }
+
+        do {
+            if let data = try await item.loadTransferable(type: Data.self),
+               let image = UIImage(data: data) {
+                let compressed = image.jpegData(compressionQuality: 0.85) ?? data
+                await MainActor.run {
+                    avatarPreview = image
+                    avatarUploadData = compressed
+                }
+            }
+        } catch {
+            await MainActor.run {
+                viewModel.errorMessage = "Unable to load selected image."
             }
         }
     }
