@@ -8,12 +8,26 @@ struct LoginView: View {
     @State private var password = ""
     @State private var rememberMe = false
 
-    // Remove onLogin: (() -> Void)? = nil as it seems redundant with onLoginSuccess
+    // Navigation closures
     var onSignup: (() -> Void)? = nil
     // This closure will be called when login is successful
     var onLoginSuccess: (AppUserRole) -> Void
 
     var body: some View {
+    var onForgotPassword: (() -> Void)? = nil  // Add this line
+    var onLoginSuccess: (UserRole) -> Void
+
+    enum UserRole {
+        case user, professional
+    }
+
+    var body: some View {
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+
         ScrollView {
             VStack(spacing: 20) {
                 // Spacer to push content down
@@ -59,6 +73,38 @@ struct LoginView: View {
                         .keyboardType(.emailAddress)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
+                    .foregroundColor(Color(hex: 0x6B7280))
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 24)
+
+                // MARK: Email
+                CustomTextField(icon: "envelope.fill",
+                                 placeholder: "Email",
+                                 text: $viewModel.email)
+
+                // MARK: Password
+                CustomSecureField(icon: "lock.fill",
+                                 placeholder: "Password",
+                                 text: $viewModel.password,
+                                 showPassword: $showPassword)
+
+                // MARK: Forgot Password
+                HStack {
+                    Spacer()
+                    Button(action: { onForgotPassword?() }) {
+                        Text("Forgot Password?")
+                            .foregroundColor(Color(hex: 0xF59E0B))
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                }
+                .padding(.top, 4)
+
+                // MARK: Error
+                if let error = viewModel.errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.body)
+                        .padding(.top, 4)
                 }
                 .padding()
                 .background(Color(hex: 0xF3F4F6))
@@ -223,7 +269,14 @@ struct LoginView: View {
             viewModel.email = email
             viewModel.password = password
             await viewModel.login { role in
-                onLoginSuccess(role)
+                let userRole: UserRole
+                switch role {
+                case "professional":
+                    userRole = .professional
+                default:
+                    userRole = .user
+                }
+                onLoginSuccess(userRole)
             }
         }
     }

@@ -25,7 +25,6 @@ extension Color {
 
 // MARK: - HomeUserScreen
 struct HomeUserScreen: View {
-    @State private var showingNotifications = false
     @State private var showingDrawer = false
     @State private var showingSearch = false
     @State private var selectedFilter: String = "All"
@@ -39,7 +38,6 @@ struct HomeUserScreen: View {
     var onNavigateToOrders: (() -> Void)? = nil // NEW: Navigate to order history
     var onOpenMessages: (() -> Void)? = nil
     var onOpenProfile: (() -> Void)? = nil
-
 
     var body: some View {
         ZStack {
