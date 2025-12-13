@@ -7,6 +7,7 @@ struct OrderHistoryScreen: View {
     
     let userId: String
     let onOrderClick: (String) -> Void
+    var onReclamationClick: ((String) -> Void)? = nil // Callback for reclamation navigation
     
     var body: some View {
         VStack(spacing: 0) {
@@ -19,7 +20,11 @@ struct OrderHistoryScreen: View {
             } else if viewModel.orders.isEmpty {
                 EmptyOrdersView()
             } else {
-                OrdersList(orders: viewModel.orders, onOrderClick: onOrderClick)
+                OrdersList(
+                    orders: viewModel.orders,
+                    onOrderClick: onOrderClick,
+                    onReclamationClick: onReclamationClick
+                )
             }
         }
         .background(Color(hex: 0xFFF9FAFB))
@@ -108,12 +113,17 @@ struct EmptyOrdersView: View {
 struct OrdersList: View {
     let orders: [OrderResponse]
     let onOrderClick: (String) -> Void
+    let onReclamationClick: ((String) -> Void)?
     
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 10) {
                 ForEach(orders) { order in
-                    OrderItemCard(order: order, onClick: onOrderClick)
+                    OrderItemCard(
+                        order: order,
+                        onClick: onOrderClick,
+                        onReclamationClick: onReclamationClick
+                    )
                 }
             }
             .padding(.vertical, 10)
@@ -125,6 +135,7 @@ struct OrdersList: View {
 struct OrderItemCard: View {
     let order: OrderResponse
     let onClick: (String) -> Void
+    let onReclamationClick: ((String) -> Void)?
     
     var itemsSummary: String {
         let firstItems = order.items.prefix(2).map { "\($0.name) x\($0.quantity)" }.joined(separator: ", ")
@@ -181,10 +192,28 @@ struct OrderItemCard: View {
                 
                 Spacer()
                 
-                // Date
-                Text(order.createdAt.prefix(10))
-                    .font(.system(size: 12))
-                    .foregroundColor(Color(hex: 0xFF9CA3AF))
+                // Date and Reclamation Icon
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(order.createdAt.prefix(10))
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(hex: 0xFF9CA3AF))
+                    
+                    // Reclamation Icon Button
+                    if let onReclamationClick = onReclamationClick {
+                        Button(action: {
+                            onReclamationClick(order.id)
+                        }) {
+                            // Triangle warning icon from icons folder (24pt asset)
+                            // If the asset isn't found, it will show a placeholder
+                            Image("24pt")
+                                .resizable()
+                                .renderingMode(.template)
+                                .foregroundColor(Color(red: 1.0, green: 0.65, blue: 0.0)) // Orange color
+                                .frame(width: 24, height: 24)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
             }
             
             Divider()

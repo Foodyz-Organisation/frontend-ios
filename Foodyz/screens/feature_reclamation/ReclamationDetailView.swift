@@ -13,53 +13,51 @@ struct ReclamationDetailView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Status Card
-                    StatusCard(
-                        status: reclamation.status,
-                        date: dateFormatter.string(from: reclamation.date),
-                        orderNumber: reclamation.orderNumber
-                    )
-                    
-                    // Complaint Type
-                    SectionLabel(text: "Type de réclamation")
-                    InfoCard(content: reclamation.complaintType)
-                    
-                    // Description
-                    SectionLabel(text: "Description")
-                    InfoCard(content: reclamation.description)
-                    
-                    // Photos
-                    if !reclamation.photos.isEmpty {
-                        SectionLabel(text: "Photos (\(reclamation.photos.count))")
-                        PhotosGrid(photos: reclamation.photos)
-                    }
-                    
-                    // Response
-                    if let response = reclamation.response {
-                        SectionLabel(text: "Réponse")
-                        ResponseCard(response: response)
-                    }
-                    
-                    Spacer(minLength: 20)
+        ScrollView {
+            VStack(spacing: 20) {
+                // Status Card
+                StatusCard(
+                    status: reclamation.status,
+                    date: dateFormatter.string(from: reclamation.date),
+                    orderNumber: reclamation.orderNumber
+                )
+                
+                // Complaint Type
+                SectionLabel(text: "Type de réclamation")
+                InfoCard(content: reclamation.complaintType)
+                
+                // Description
+                SectionLabel(text: "Description")
+                InfoCard(content: reclamation.description)
+                
+                // Photos
+                if !reclamation.photoUrls.isEmpty {
+                    SectionLabel(text: "Photos (\(reclamation.photoUrls.count))")
+                    PhotosGrid(photoUrls: reclamation.photoUrls)
                 }
-                .padding(24)
+                
+                // Response
+                if let response = reclamation.response {
+                    SectionLabel(text: "Réponse")
+                    ResponseCard(response: response)
+                }
+                
+                Spacer(minLength: 20)
             }
-            .background(Color.white)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Détails Réclamation")
+            .padding(24)
+        }
+        .background(Color.white)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Détails Réclamation")
+                    .foregroundColor(ReclamationBrandColors.textPrimary)
+                    .fontWeight(.semibold)
+            }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: onBackClick) {
+                    Image(systemName: "chevron.left")
                         .foregroundColor(ReclamationBrandColors.textPrimary)
-                        .fontWeight(.semibold)
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: onBackClick) {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(ReclamationBrandColors.textPrimary)
-                    }
                 }
             }
         }
@@ -152,18 +150,36 @@ struct DetailRow: View {
 
 // MARK: - Photos Grid
 struct PhotosGrid: View {
-    let photos: [UIImage]
+    let photoUrls: [String]
     
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            ForEach(photos.indices, id: \.self) { index in
-                Image(uiImage: photos[index])
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 180)
-                    .clipped()
-                    .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+            ForEach(photoUrls, id: \.self) { photoUrl in
+                AsyncImage(url: URL(string: photoUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .frame(height: 180)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 180)
+                            .clipped()
+                            .cornerRadius(16)
+                            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+                    case .failure:
+                        Image(systemName: "photo")
+                            .font(.system(size: 40))
+                            .foregroundColor(.gray)
+                            .frame(height: 180)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(16)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
             }
         }
         .frame(maxHeight: 400)
@@ -209,7 +225,7 @@ struct ReclamationDetailView_Previews: PreviewProvider {
                 orderNumber: "Commande #12345",
                 complaintType: "Late delivery",
                 description: "Ma commande est arrivée avec 45 minutes de retard et les plats étaient complètement froids. J'ai essayé de contacter le livreur mais il ne répondait pas.",
-                photos: [],
+                photoUrls: [],
                 status: .resolved,
                 date: Date(),
                 response: "Nous sommes sincèrement désolés pour ce désagrément. Votre commande a été remboursée intégralement et nous avons pris des mesures avec notre partenaire de livraison."
@@ -223,7 +239,7 @@ struct ReclamationDetailView_Previews: PreviewProvider {
                 orderNumber: "Commande #12346",
                 complaintType: "Missing item",
                 description: "Il manquait une boisson dans ma commande.",
-                photos: [],
+                photoUrls: [],
                 status: .pending,
                 date: Date()
             )

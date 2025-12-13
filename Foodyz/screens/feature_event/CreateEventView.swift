@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 import Combine
 import MapKit
+import CoreLocation
 
 // MARK: - CreateEventView
 struct CreateEventView: View {
@@ -120,7 +121,9 @@ struct CreateEventView: View {
                     ImageSection(
                         imageState: $viewModel.imageState,
                         onAddImage: { viewModel.showImagePicker = true },
-                        onRemoveImage: { viewModel.imageState = .empty }
+                        onRemoveImage: { 
+                            viewModel.imageState = ImagePicker.ImageState.empty
+                        }
                     )
                     
                     CreateButton(isValid: viewModel.isValid && !viewModel.isCreating) {
@@ -204,7 +207,7 @@ private struct DescriptionTextField: View {
                 TextEditor(text: $text)
                     .frame(minHeight: 140)
                     .foregroundColor(BrandColors.TextPrimary)
-                    .onChange(of: text) { newValue in
+                    .onChange(of: text) { oldValue, newValue in
                         if newValue.count > maxLength { text = String(newValue.prefix(maxLength)) }
                     }
             }
@@ -371,6 +374,8 @@ class CreateEventViewModel: ObservableObject {
     }
     
     func updateLocationName(for coordinate: CLLocationCoordinate2D) {
+        // Note: CLGeocoder is deprecated in iOS 26.0, but MapKit alternative requires iOS 18+
+        // Using CLGeocoder for compatibility with current iOS versions
         let geocoder = CLGeocoder()
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         

@@ -49,7 +49,7 @@ struct DynamicMenuScreen: View {
                     viewModel.fetchMenu()
                 })
             } else if viewModel.filteredMenuItems.isEmpty {
-                EmptyStateView(categoryName: viewModel.selectedCategory?.rawValue ?? "this category")
+                MenuEmptyStateView(categoryName: viewModel.selectedCategory?.rawValue ?? "this category")
             } else {
                 MenuItemsList(
                     items: viewModel.filteredMenuItems,
@@ -375,7 +375,7 @@ struct ErrorView: View {
 }
 
 // MARK: - Empty State View
-struct EmptyStateView: View {
+private struct MenuEmptyStateView: View {
     let categoryName: String
     
     var body: some View {

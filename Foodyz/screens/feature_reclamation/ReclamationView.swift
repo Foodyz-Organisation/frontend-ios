@@ -143,17 +143,29 @@ struct ReclamationView: View {
         
         if isValid {
             print("✅ Validation OK, création du DTO...")
+            print("🔍 DEBUG - Données du formulaire:")
+            print("   commandeConcernee: \(commandeConcernee)")
+            print("   complaintType: \(complaintType)")
+            print("   description: \(description)")
+            print("   selectedPhotos count: \(selectedPhotos.count)")
             
             // ✅ Le backend récupère automatiquement nomClient et emailClient du token JWT
-            // On n'envoie plus ces champs dans le DTO
-            let imageURL = selectedPhotos.first != nil ? "https://example.com/photo.jpg" : nil
+            // Backend expects 'photos' as array of strings (URLs), not 'image' as single string
+            // For now, we'll send empty array or nil - photos should be uploaded separately
+            let photos: [String]? = selectedPhotos.isEmpty ? nil : [] // TODO: Upload photos and get URLs
             
             let dto = ReclamationDTO(
                 commandeConcernee: commandeConcernee,
                 complaintType: complaintType,
                 description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                image: imageURL
+                photos: photos
             )
+            
+            print("🔍 DEBUG - DTO créé:")
+            print("   commandeConcernee: \(dto.commandeConcernee)")
+            print("   complaintType: \(dto.complaintType)")
+            print("   description: \(dto.description)")
+            print("   photos: \(dto.photos?.description ?? "nil")")
             
             print("📦 DTO créé avec succès (sans nomClient/emailClient - récupérés du token)")
             print("🚀 Appel de l'API avec authentification...")

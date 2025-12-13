@@ -152,10 +152,15 @@ struct HomeProfessionalView: View {
                         navigateTo: { route in
                             withAnimation { showingDrawer = false }
                             // Handle navigation based on route
-                            if route == "menu" {
+                            switch route {
+                            case "menu":
                                 path.append(Screen.menu)
-                            }
+                            case "reclamations":
+                                path.append(Screen.reclamationList)
                             // Add other routes as needed
+                            default:
+                                break
+                            }
                         }
                     )
                     Spacer()

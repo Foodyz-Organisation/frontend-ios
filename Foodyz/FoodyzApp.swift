@@ -111,7 +111,8 @@ struct HomeContentView: View {
                                 icon: "calendar.badge.clock",
                                 title: "Events",
                                 subtitle: "Browse food events",
-                                color: .orange
+                                backgroundColor: .orange.opacity(0.1),
+                                iconColor: .orange
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -120,14 +121,16 @@ struct HomeContentView: View {
                             icon: "fork.knife",
                             title: "Restaurants",
                             subtitle: "Find places to eat",
-                            color: .red
+                            backgroundColor: .red.opacity(0.1),
+                            iconColor: .red
                         )
                         
                         CategoryCard(
                             icon: "star.fill",
                             title: "Reviews",
                             subtitle: "Share your experience",
-                            color: .yellow
+                            backgroundColor: .yellow.opacity(0.1),
+                            iconColor: .yellow
                         )
                         
                         // Card Complaints - Cliquable
@@ -138,7 +141,8 @@ struct HomeContentView: View {
                                 icon: "exclamationmark.bubble.fill",
                                 title: "Complaints",
                                 subtitle: "Report issues",
-                                color: .blue
+                                backgroundColor: .blue.opacity(0.1),
+                                iconColor: .blue
                             )
                         }
                         .buttonStyle(PlainButtonStyle())

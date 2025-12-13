@@ -11,6 +11,7 @@ struct ReclamationApp: View {
             orderNumber: "Commande #12345",
             complaintType: "Late delivery",
             description: "Ma commande est arrivée avec 45 minutes de retard et les plats étaient froids.",
+            photoUrls: [],
             status: .pending,
             date: Date()
         ),
@@ -18,6 +19,7 @@ struct ReclamationApp: View {
             orderNumber: "Commande #12344",
             complaintType: "Missing item",
             description: "Il manquait une boisson dans ma commande.",
+            photoUrls: [],
             status: .resolved,
             date: Date().addingTimeInterval(-86400),
             response: "Nous vous avons remboursé la boisson manquante."
@@ -26,30 +28,14 @@ struct ReclamationApp: View {
             orderNumber: "Commande #12343",
             complaintType: "Quality issue",
             description: "Le burger était mal cuit et les frites étaient molles.",
+            photoUrls: [],
             status: .rejected,
             date: Date().addingTimeInterval(-172800)
         )
     ]
     
     var body: some View {
-        NavigationStack {
-            ReclamationListView(
-                reclamations: reclamations
-            ) { reclamation in
-                selectedReclamation = reclamation
-                showingDetail = true
-            }
-            .navigationDestination(isPresented: $showingDetail) {
-                if let reclamation = selectedReclamation {
-                    ReclamationDetailView(
-                        reclamation: reclamation
-                    ) {
-                        showingDetail = false
-                    }
-                    .navigationBarBackButtonHidden(true)
-                }
-            }
-        }
+        ReclamationListView()
     }
 }
 
@@ -64,7 +50,7 @@ struct ReclamationListViewUpdated: View {
             ReclamationBrandColors.background.ignoresSafeArea()
             
             if reclamations.isEmpty {
-                EmptyStateView()
+                ReclamationEmptyStateView()
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
@@ -127,9 +113,9 @@ struct ReclamationDetailViewUpdated: View {
                 InfoCard(content: reclamation.description)
                 
                 // Photos
-                if !reclamation.photos.isEmpty {
-                    SectionLabel(text: "Photos (\(reclamation.photos.count))")
-                    PhotosGrid(photos: reclamation.photos)
+                if !reclamation.photoUrls.isEmpty {
+                    SectionLabel(text: "Photos (\(reclamation.photoUrls.count))")
+                    PhotosGrid(photoUrls: reclamation.photoUrls)
                 }
                 
                 // Response

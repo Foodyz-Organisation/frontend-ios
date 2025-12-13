@@ -7,19 +7,13 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var rememberMe = false
+    @State private var showDebugPanel = false // Debug toggle
 
     // Navigation closures
     var onSignup: (() -> Void)? = nil
+    var onForgotPassword: (() -> Void)? = nil
     // This closure will be called when login is successful
     var onLoginSuccess: (AppUserRole) -> Void
-
-    var body: some View {
-    var onForgotPassword: (() -> Void)? = nil  // Add this line
-    var onLoginSuccess: (UserRole) -> Void
-
-    enum UserRole {
-        case user, professional
-    }
 
     var body: some View {
         let gradient = LinearGradient(
@@ -63,30 +57,18 @@ struct LoginView: View {
                     .foregroundColor(.gray)
                     .padding(.bottom, 20)
                 
-                // Email Field
-                HStack(spacing: 12) {
-                    Image(systemName: "envelope.fill")
-                        .foregroundColor(.gray)
-                        .frame(width: 24)
-                    
-                    TextField("Email", text: $email)
-                        .keyboardType(.emailAddress)
-                        .autocapitalization(.none)
-                        .autocorrectionDisabled()
-                    .foregroundColor(Color(hex: 0x6B7280))
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 24)
-
                 // MARK: Email
                 CustomTextField(icon: "envelope.fill",
                                  placeholder: "Email",
                                  text: $viewModel.email)
+                    .padding(.horizontal, 24)
 
                 // MARK: Password
                 CustomSecureField(icon: "lock.fill",
                                  placeholder: "Password",
                                  text: $viewModel.password,
                                  showPassword: $showPassword)
+                    .padding(.horizontal, 24)
 
                 // MARK: Forgot Password
                 HStack {
@@ -97,6 +79,7 @@ struct LoginView: View {
                             .font(.system(size: 14, weight: .medium))
                     }
                 }
+                .padding(.horizontal, 24)
                 .padding(.top, 4)
 
                 // MARK: Error
@@ -105,35 +88,10 @@ struct LoginView: View {
                         .foregroundColor(.red)
                         .font(.body)
                         .padding(.top, 4)
+                        .padding(.horizontal, 24)
                 }
-                .padding()
-                .background(Color(hex: 0xF3F4F6))
-                .cornerRadius(12)
-                .padding(.horizontal, 24)
                 
-                // Password Field
-                HStack(spacing: 12) {
-                    Image(systemName: "lock.fill")
-                        .foregroundColor(.gray)
-                        .frame(width: 24)
-                    
-                    if showPassword {
-                        TextField("Password", text: $password)
-                    } else {
-                        SecureField("Password", text: $password)
-                    }
-                    
-                    Button(action: { showPassword.toggle() }) {
-                        Image(systemName: showPassword ? "eye.fill" : "eye.slash.fill")
-                            .foregroundColor(.gray)
-                    }
-                }
-                .padding()
-                .background(Color(hex: 0xF3F4F6))
-                .cornerRadius(12)
-                .padding(.horizontal, 24)
-                
-                // Remember Me & Forgot Password
+                // Remember Me
                 HStack {
                     Button(action: {
                         rememberMe.toggle()
@@ -146,14 +104,7 @@ struct LoginView: View {
                                 .foregroundColor(.gray)
                         }
                     }
-                    
                     Spacer()
-                    
-                    Button(action: {}) {
-                        Text("Forgot Password?")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: 0xD97706))
-                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 5)
@@ -256,6 +207,26 @@ struct LoginView: View {
         }
         .background(Color.white)
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showDebugPanel.toggle() }) {
+                    Image(systemName: showDebugPanel ? "eye.slash.fill" : "eye.fill")
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .overlay(alignment: .top) {
+            if showDebugPanel {
+                DebugPanelView(
+                    email: viewModel.email,
+                    passwordLength: viewModel.password.count,
+                    isLoading: viewModel.isLoading,
+                    errorMessage: viewModel.errorMessage
+                )
+                .padding()
+                .transition(.move(edge: .top))
+            }
+        }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -264,21 +235,82 @@ struct LoginView: View {
     }
     
     private func loginAction() {
+        // 🔍 DEBUG: Log current state before login
+        print("🔍 ========== LOGIN DEBUG ==========")
+        print("🔍 ViewModel Email: '\(viewModel.email)' (length: \(viewModel.email.count))")
+        print("🔍 ViewModel Password: '\(String(repeating: "*", count: viewModel.password.count))' (length: \(viewModel.password.count))")
+        print("🔍 Email isEmpty: \(viewModel.email.isEmpty)")
+        print("🔍 Password isEmpty: \(viewModel.password.isEmpty)")
+        print("🔍 Email trimmed: '\(viewModel.email.trimmingCharacters(in: .whitespacesAndNewlines))'")
+        print("🔍 Password trimmed length: \(viewModel.password.trimmingCharacters(in: .whitespacesAndNewlines).count)")
+        print("🔍 ==================================")
+        
         Task {
-            // Update viewModel's email and password from local state variables
-            viewModel.email = email
-            viewModel.password = password
             await viewModel.login { role in
-                let userRole: UserRole
-                switch role {
-                case "professional":
-                    userRole = .professional
-                default:
-                    userRole = .user
-                }
-                onLoginSuccess(userRole)
+                onLoginSuccess(role)
             }
         }
+    }
+}
+
+// MARK: - Debug Panel
+struct DebugPanelView: View {
+    let email: String
+    let passwordLength: Int
+    let isLoading: Bool
+    let errorMessage: String?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("🔍 DEBUG INFO")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Divider()
+                .background(Color.white.opacity(0.5))
+            
+            HStack {
+                Text("Email:")
+                    .foregroundColor(.white)
+                Spacer()
+                Text("'\(email)' (\(email.count) chars)")
+                    .foregroundColor(email.isEmpty ? .red : .green)
+                    .font(.system(.caption, design: .monospaced))
+            }
+            
+            HStack {
+                Text("Password:")
+                    .foregroundColor(.white)
+                Spacer()
+                Text("\(passwordLength) chars")
+                    .foregroundColor(passwordLength == 0 ? .red : .green)
+                    .font(.system(.caption, design: .monospaced))
+            }
+            
+            HStack {
+                Text("Loading:")
+                    .foregroundColor(.white)
+                Spacer()
+                Text(isLoading ? "Yes" : "No")
+                    .foregroundColor(isLoading ? .yellow : .white)
+            }
+            
+            if let error = errorMessage {
+                HStack {
+                    Text("Error:")
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.system(.caption))
+                        .lineLimit(2)
+                }
+            }
+        }
+        .padding()
+        .background(Color.black.opacity(0.8))
+        .cornerRadius(12)
+        .shadow(radius: 10)
     }
 }
 

@@ -55,6 +55,10 @@ struct ProfessionalDrawer: View {
                         navigateTo("notifications")
                     }
                     
+                    DrawerMenuItem(icon: "exclamationmark.triangle.fill", title: "Reclamations") {
+                        navigateTo("reclamations")
+                    }
+                    
                     DrawerMenuItem(icon: "gearshape.fill", title: "Settings") {
                         navigateTo("settings")
                     }

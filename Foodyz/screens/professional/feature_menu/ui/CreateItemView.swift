@@ -218,12 +218,12 @@ struct CreateMenuItemScreen: View {
         }
         .navigationTitle("Create New Item") // Added title for clarity
         .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(image: $selectedImage)
+            UIKitImagePicker(image: $selectedImage)
         }
     }
 }
 // MARK: - Image Picker (UIKit wrapper)
-struct ImagePicker: UIViewControllerRepresentable {
+private struct UIKitImagePicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
@@ -240,8 +240,8 @@ struct ImagePicker: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let parent: ImagePicker
-        init(_ parent: ImagePicker) { self.parent = parent }
+        let parent: UIKitImagePicker
+        init(_ parent: UIKitImagePicker) { self.parent = parent }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)

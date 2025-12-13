@@ -17,8 +17,7 @@ struct AppAPIConstants {
     
     // ✅ POUR IPHONE PHYSIQUE (même WiFi que votre Mac)
     // Trouvez l'IP de votre Mac avec: ifconfig | grep "inet "
-    // Exemple: 192.168.1.15, 192.168.0.105, etc.
-    // static let baseURL = "http://192.168.1.15:3000"  // ⚠️ Remplacez par VOTRE IP
+    // static let baseURL = "http://192.168.1.10:3000"  // ⚠️ Décommentez et remplacez par VOTRE IP pour iPhone physique
     
     // ❌ NE PAS UTILISER (Android uniquement)
     // static let baseURL = "http://10.0.2.2:3000"

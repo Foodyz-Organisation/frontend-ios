@@ -1,19 +1,6 @@
-//
-//  AppNavigation.swift
-//  Foodyz
-//
-//  Created by Mouscou Mohamed khalil on 15/11/2025.
-//
-
 import SwiftUI
 import Combine // Required for ObservableObject and @Published
 
-// -----------------------------
-// MARK: - AuthService Placeholder (The Fix) 🛠️
-// -----------------------------
-
-/// Minimal AuthService definition to resolve the 'Cannot find AuthService in scope' error.
-/// In a real project, this class should be in its own AuthService.swift file.
 class AuthService: ObservableObject {
     
     // Publishable properties for session state
@@ -55,7 +42,6 @@ enum Screen: Hashable {
     // Home
     case homeUser
     case homeProfessional
-    case proSignup
     case menu
     case createMenuItem(String)
     case editMenuItem(MenuNavigationItem)
@@ -67,6 +53,18 @@ enum Screen: Hashable {
     case chatList(role: AppUserRole)
     case chatThread(conversationId: String, title: String?)
     case userProfile
+    case reclamationList
+    
+    // Deals
+    case dealsList
+    case dealDetail(dealId: String)
+    case proDealsManagement
+    case addDeal
+    case editDeal(dealId: String)
+    
+    // Reclamation
+    case createReclamation(orderId: String)
+    case reclamationDetail(reclamationId: String)
 
     // ... Equatable and Hashable implementations ...
 }
@@ -79,6 +77,7 @@ struct AppNavigation: View {
     @State private var path = NavigationPath()
     @StateObject private var sessionManager = SessionManager.shared
     @StateObject private var menuVM = MenuViewModel()
+    @StateObject private var dealsVM = DealsViewModel()
     
     @StateObject private var cartViewModel: CartViewModel
     
@@ -111,6 +110,7 @@ struct AppNavigation: View {
                 case .login:
                     LoginView(
                         onSignup: { path.append(Screen.userSignup) },
+                        onForgotPassword: { path.append(Screen.forgotPassword) },
                         onLoginSuccess: { role in
                             // Update cart with logged-in user ID
                             if let userId = sessionManager.userId {
@@ -133,6 +133,15 @@ struct AppNavigation: View {
                 case .proSignup:
                     ProSignupView()
                     
+                case .forgotPassword:
+                    ForgotPasswordView()
+                    
+                case .verifyOtp(let email):
+                    VerifyOtpView(email: email)
+                    
+                case .resetPassword(let email, let resetToken):
+                    ResetPasswordView(email: email, resetToken: resetToken)
+                    
                 // ===================================
                 // USER SCREENS
                 // ===================================
@@ -150,6 +159,8 @@ struct AppNavigation: View {
                                  path.append(Screen.chatList(role: AppUserRole.user))
                              case "profile":
                                  path.append(Screen.userProfile)
+                             case "reclamations":
+                                 path.append(Screen.reclamationList)
                              case "login":
                                  path.removeLast(path.count)
                                  path.append(Screen.login)
@@ -217,8 +228,23 @@ struct AppNavigation: View {
                         onOrderClick: { orderId in
                             print("Order clicked: \(orderId)")
                             // Future: navigate to order details
+                        },
+                        onReclamationClick: { orderId in
+                            // Navigate to ReclamationView with order ID
+                            path.append(Screen.createReclamation(orderId: orderId))
                         }
                     )
+                
+                case .createReclamation(let orderId):
+                    ReclamationView(
+                        restaurantNames: ["Restaurant A", "Restaurant B", "Restaurant C"], // TODO: Fetch from API
+                        complaintTypes: ["Late delivery", "Missing item", "Quality issue", "Other"],
+                        commandeConcernees: [orderId] // Use the order ID as the concerned order
+                    ) { restaurant, type, description, photos in
+                        print("Réclamation soumise pour commande \(orderId): \(type)")
+                        // Navigate back after submission
+                        path.removeLast()
+                    }
 
                 case .chatList(let role):
                     ChatListView(role: role) { conversation, resolvedTitle in
@@ -230,6 +256,26 @@ struct AppNavigation: View {
 
                 case .userProfile:
                     UserProfileView()
+                
+                case .reclamationList:
+                    ReclamationListView()
+                
+                case .createReclamation(let orderId):
+                    ReclamationView(
+                        restaurantNames: ["Restaurant A", "Restaurant B", "Restaurant C"], // TODO: Fetch from API
+                        complaintTypes: ["Late delivery", "Missing item", "Quality issue", "Other"],
+                        commandeConcernees: [orderId] // Use the order ID as the concerned order
+                    ) { restaurant, type, description, photos in
+                        print("Réclamation soumise pour commande \(orderId): \(type)")
+                        // Navigate back after submission
+                        path.removeLast()
+                    }
+                
+                case .reclamationDetail(let reclamationId):
+                    // TODO: Fetch reclamation by ID and show detail
+                    // For now, this is handled by NavigationLink in ReclamationListView
+                    Text("Reclamation Detail: \(reclamationId)")
+                        .navigationTitle("Détails Réclamation")
                     
                 // ===================================
                 // PROFESSIONAL SCREENS
@@ -257,173 +303,54 @@ struct AppNavigation: View {
                     if let itemId = navItem.itemId {
                         ItemDetailsView(viewModel: menuVM, itemId: itemId, professionalId: navItem.professionalId)
                     }
+                    
+                // ===================================
+                // DEALS SCREENS
+                // ===================================
+                    
+                case .dealsList:
+                    DealsListUserView(viewModel: dealsVM)
+                        .onAppear {
+                            dealsVM.loadDeals()
+                        }
+                    
+                case .dealDetail(let dealId):
+                    DealDetailUserView(dealId: dealId, viewModel: dealsVM)
+                        .onAppear {
+                            dealsVM.loadDealById(dealId)
+                        }
+                    
+                case .proDealsManagement:
+                    ProDealsManagementView(
+                        viewModel: dealsVM,
+                        onAddDealClick: {
+                            path.append(Screen.addDeal)
+                        },
+                        onEditDealClick: { dealId in
+                            path.append(Screen.editDeal(dealId: dealId))
+                        }
+                    )
+                    .onAppear {
+                        dealsVM.loadDeals()
+                    }
+                    
+                case .addDeal:
+                    AddEditDealView(viewModel: dealsVM)
+                        .navigationTitle("Nouveau Deal")
+                    
+                case .editDeal(let dealId):
+                    AddEditDealView(viewModel: dealsVM)
+                        .navigationTitle("Modifier Deal")
+                        .onAppear {
+                            dealsVM.loadDealById(dealId)
+                        }
                 }
-            // Root view — Splash screen
-            SplashView(onFinished: {
-                path.append(Screen.login)
-            })
-            .navigationDestination(for: Screen.self) { screen in
-                destinationView(for: screen)
             }
         }
         .environmentObject(sessionManager)
     }
 }
 
-// -----------------------------
-// MARK: - Preview
-// -----------------------------
-struct AppNavigation_Previews: PreviewProvider {
-    static var previews: some View {
-        AppNavigation()
-            // Add environment object for preview to prevent crashes if child views use it
-            .environmentObject(SessionManager.shared)
-    }
-    
-    @ViewBuilder
-    private func destinationView(for screen: Screen) -> some View {
-        switch screen {
-        // ============================================
-        // 📌 SECTION AUTH
-        // ============================================
-        case .splash:
-            SplashView(onFinished: {
-                path.append(Screen.login)
-            })
-            
-        case .login:
-            LoginView(
-                onSignup: {
-                    path.append(Screen.userSignup)
-                },
-                onForgotPassword: {
-                    path.append(Screen.forgotPassword)
-                },
-                onLoginSuccess: { role in
-                    path.removeLast(path.count)
-                    switch role {
-                    case .user:
-                        path.append(Screen.homeUser)
-                    case .professional:
-                        path.append(Screen.homeProfessional)
-                    }
-                }
-            )
-            
-        case .userSignup:
-            UserSignupView(onFinishSignup: {
-                path.removeLast()
-            })
-            
-        case .proSignup:
-            ProSignupView(onFinish: {
-                path.removeLast(path.count)
-                path.append(Screen.homeUser)
-            })
-            
-        case .forgotPassword:
-            ForgotPasswordView()
-            
-        case .verifyOtp(let email):
-            VerifyOtpView(email: email)
-            
-        case .resetPassword(let email, let resetToken):
-            ResetPasswordView(email: email, resetToken: resetToken)
-            
-        // ============================================
-        // 📌 SECTION HOME
-        // ============================================
-        case .homeUser:
-            HomeUserScreen(
-                onNavigateDrawer: { route in
-                    handleDrawerNavigation(route: route)
-                }
-            )
-            
-        case .homeProfessional:
-            HomeProfessionalView(
-                onNavigateToDealsList: {
-                    path.append(Screen.proDealsManagement)
-                }
-            )
-            
-        // ============================================
-        // 📌 SECTION DEALS - PROFESSIONAL
-        // ============================================
-        case .proDealsManagement:
-            ProDealsManagementView(
-                viewModel: dealsViewModel,
-                onAddDealClick: {
-                    path.append(Screen.addDeal)
-                },
-                onEditDealClick: { dealId in
-                    path.append(Screen.editDeal(dealId: dealId))
-                }
-            )
-            .onAppear {
-                dealsViewModel.loadDeals()
-            }
-            
-        case .addDeal:
-            AddEditDealView(viewModel: dealsViewModel)
-                .navigationTitle("Nouveau Deal")
-            
-        case .editDeal(let dealId):
-            AddEditDealView(viewModel: dealsViewModel)
-                .navigationTitle("Modifier Deal")
-            
-        // ============================================
-        // 📌 SECTION DEALS - USER
-        // ============================================
-        case .dealsList:
-            DealsListUserView(viewModel: dealsViewModel)
-                .onAppear {
-                    dealsViewModel.loadDeals()
-                }
-            
-        case .dealDetail(let dealId):
-            DealDetailUserView(dealId: dealId, viewModel: dealsViewModel)
-        }
-    }
-    
-    // MARK: - Navigation Helpers
-    private func handleDrawerNavigation(route: String) {
-        switch route {
-        case "signup_pro":
-            path.append(Screen.proSignup)
-        case "home":
-            path.removeLast(path.count)
-            path.append(Screen.homeUser)
-        case "deals":
-            path.append(Screen.dealsList)
-        case "logout":
-            path.removeLast(path.count)
-            path.append(Screen.login)
-        default:
-            print("⚠️ Unknown route: \(route)")
-        }
-    }
-    
-    private func handleProfessionalNavigation(route: String) {
-        switch route {
-        case "pro_deals":
-            path.append(Screen.proDealsManagement)
-        case "menu_management":
-            print("⚠️ Menu management not yet implemented")
-        case "add_meal":
-            print("⚠️ Add meal not yet implemented")
-        case "restaurant_reclamations":
-            print("⚠️ Restaurant reclamations not yet implemented")
-        case "logout":
-            path.removeLast(path.count)
-            path.append(Screen.login)
-        default:
-            print("⚠️ Unknown route: \(route)")
-        }
-    }
-}
-
-// MARK: - Placeholder Views (à remplacer par vos vraies vues)
 
 struct DealsListUserView: View {
     @ObservedObject var viewModel: DealsViewModel
@@ -494,10 +421,13 @@ struct DealDetailUserView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Trouver le deal dans la liste
-                if case .success(let deals) = viewModel.dealsState,
-                   let deal = deals.first(where: { $0._id == dealId }) {
+                switch viewModel.dealDetailState {
+                case .loading:
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding()
                     
+                case .success(let deal):
                     if let url = URL(string: deal.image) {
                         AsyncImage(url: url) { image in
                             image
@@ -546,9 +476,22 @@ struct DealDetailUserView: View {
                         }
                     }
                     .padding()
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    
+                case .error(let message):
+                    VStack(spacing: 16) {
+                        Text("Erreur")
+                            .font(.headline)
+                            .foregroundColor(BrandColors.Red)
+                        Text(message)
+                            .font(.body)
+                            .foregroundColor(BrandColors.TextSecondary)
+                        Button("Réessayer") {
+                            viewModel.loadDealById(dealId)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
                 }
             }
         }

@@ -21,22 +21,44 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
+        // 🔍 DEBUG: Log raw values
+        print("🔍 ========== AUTH VIEWMODEL DEBUG ==========")
+        print("🔍 Raw Email: '\(email)' (length: \(email.count), isEmpty: \(email.isEmpty))")
+        print("🔍 Raw Password: '\(String(repeating: "*", count: password.count))' (length: \(password.count), isEmpty: \(password.isEmpty))")
+        
         let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        print("🔍 Clean Email: '\(cleanEmail)' (length: \(cleanEmail.count), isEmpty: \(cleanEmail.isEmpty))")
+        print("🔍 Clean Password length: \(cleanPassword.count), isEmpty: \(cleanPassword.isEmpty)")
+        print("🔍 ==========================================")
 
         guard !cleanEmail.isEmpty, !cleanPassword.isEmpty else {
-            errorMessage = "Please enter both email and password."
+            let errorMsg = "Please enter both email and password."
+            print("❌ VALIDATION FAILED:")
+            print("   - Email empty: \(cleanEmail.isEmpty)")
+            print("   - Password empty: \(cleanPassword.isEmpty)")
+            errorMessage = errorMsg
             isLoading = false
             return
         }
 
         do {
+            print("🚀 ========== API CALL DEBUG ==========")
+            print("🚀 Endpoint: login")
+            print("🚀 Request Email: '\(cleanEmail)'")
+            print("🚀 Request Password length: \(cleanPassword.count)")
+            print("🚀 Making API call...")
+            
             let loginData = LoginRequest(email: cleanEmail, password: cleanPassword)
             let response: LoginResponse = try await AuthAPI.shared.post(
                 endpoint: "login",
                 body: loginData,
                 responseType: LoginResponse.self
             )
+            
+            print("🚀 API Response received successfully")
+            print("🚀 =====================================")
             
             print("========== LOGIN SUCCESS ==========")
             print("📧 Email: \(response.email)")
@@ -71,6 +93,15 @@ class AuthViewModel: ObservableObject {
             }
 
         } catch {
+            print("❌ ========== LOGIN ERROR ==========")
+            print("❌ Error type: \(type(of: error))")
+            print("❌ Error description: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                print("❌ Error domain: \(nsError.domain)")
+                print("❌ Error code: \(nsError.code)")
+                print("❌ Error userInfo: \(nsError.userInfo)")
+            }
+            print("❌ ==================================")
             handleAuthError(error)
         }
 
@@ -94,9 +125,11 @@ class AuthViewModel: ObservableObject {
     func checkLoginStatus() {
         isLoggedIn = TokenManager.shared.isLoggedIn()
         if isLoggedIn {
-            userRole = TokenManager.shared.getUserRole()
+            if let roleString = TokenManager.shared.getUserRole() {
+                userRole = AppUserRole(rawValue: roleString)
+            }
             email = TokenManager.shared.getUserEmail() ?? ""
-            print("✅ User is logged in - Role: \(userRole ?? "unknown")")
+            print("✅ User is logged in - Role: \(userRole?.rawValue ?? "unknown")")
         } else {
             print("❌ User is not logged in")
         }

@@ -27,6 +27,7 @@ extension Color {
 struct HomeUserScreen: View {
     @State private var showingDrawer = false
     @State private var showingSearch = false
+    @State private var showingNotifications = false
     @State private var selectedFilter: String = "All"
     @State private var currentRoute: String = "home"
     @State private var navigateToProfessionalId: String? = nil
@@ -62,39 +63,64 @@ struct HomeUserScreen: View {
                     }
                 )
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Categories
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 24) {
+                        // Promotional Cards - Side by Side
                         HStack(spacing: 16) {
-                            CategoryCard(icon: "fork.knife", title: "Eat-in", subtitle: "Dine with us", backgroundColor: HomeColors.pinkCard, iconColor: Color(red: 0.89, green: 0.27, blue: 0.58))
+                            // Delivery Card - Light Green
+                            PromoCard(
+                                icon: "truck.box.fill",
+                                title: "Delivery",
+                                subtitle: "Delivered to your door",
+                                backgroundColor: Color(red: 0.85, green: 0.95, blue: 0.85), // Light green
+                                iconColor: Color(red: 0.2, green: 0.7, blue: 0.3) // Green
+                            )
                             
-                            CategoryCard(icon: "calendar", title: "Daily Deals", subtitle: "Up to 50% off", backgroundColor: HomeColors.yellowCard, iconColor: Color(red: 0.96, green: 0.62, blue: 0.14))
-                                .onTapGesture {
-                                    onNavigateToOrders?()
-                                }
+                            // Daily Deals Card - Light Yellow
+                            PromoCard(
+                                icon: "gift.fill",
+                                title: "Daily Deals",
+                                subtitle: "Up to 50% off",
+                                backgroundColor: Color(red: 1.0, green: 0.95, blue: 0.8), // Light yellow
+                                iconColor: Color(red: 1.0, green: 0.65, blue: 0.0) // Orange
+                            )
+                            .onTapGesture {
+                                // Navigate to deals
+                            }
                         }
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
 
-                        // Filter Chips
+                        // Category Filters - Horizontal Scroll
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
                                 ForEach(filters, id: \.self) { filter in
-                                    FilterChip(
+                                    CategoryFilterChip(
                                         label: filter,
                                         isSelected: selectedFilter == filter,
-                                        icon: filterIcon(for: filter)
+                                        icon: filterIcon(for: filter),
+                                        iconColor: filterIconColor(for: filter)
                                     )
-                                    .onTapGesture { selectedFilter = filter }
+                                    .onTapGesture {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            selectedFilter = filter
+                                        }
+                                    }
                                 }
                             }
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 20)
                         }
+                        .padding(.vertical, 8)
 
-                        // Posts screen
-                        PostsScreen()
-                            .padding(.bottom, 30)
+                        // Food Items List
+                        VStack(spacing: 16) {
+                            ForEach(sampleFoodItems, id: \.id) { item in
+                                FoodItemCard(item: item)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 30)
                     }
-                    .padding(.top, 16)
                 }
                 .background(AppColors.background)
             }
@@ -140,9 +166,243 @@ struct HomeUserScreen: View {
         default: return nil
         }
     }
+    
+    private func filterIconColor(for filter: String) -> Color {
+        switch filter {
+        case "Spicy": return .red
+        case "Healthy": return .green
+        case "Sweet": return .orange
+        default: return .gray
+        }
+    }
+    
+    // Sample data for food items
+    private var sampleFoodItems: [FoodItem] {
+        [
+            FoodItem(
+                id: "1",
+                name: "creqtine impact",
+                prepareTime: 15,
+                rating: 4.9,
+                price: 28
+            ),
+            FoodItem(
+                id: "2",
+                name: "Grilled Chicken",
+                prepareTime: 20,
+                rating: 4.7,
+                price: 35
+            ),
+            FoodItem(
+                id: "3",
+                name: "Vegetarian Pasta",
+                prepareTime: 15,
+                rating: 4.8,
+                price: 32
+            )
+        ]
+    }
 }
 
-// MARK: - CategoryCard
+// MARK: - Food Item Model
+struct FoodItem: Identifiable {
+    let id: String
+    let name: String
+    let prepareTime: Int
+    let rating: Double
+    let price: Double
+}
+
+// MARK: - PromoCard - Professional Design
+struct PromoCard: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let backgroundColor: Color
+    let iconColor: Color
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            Image(systemName: icon)
+                .font(.system(size: 28, weight: .medium))
+                .foregroundColor(iconColor)
+                .frame(width: 50, height: 50)
+                .background(iconColor.opacity(0.15))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            // Text Content
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(HomeColors.darkGray)
+                
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .background(backgroundColor)
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+    }
+}
+
+// MARK: - CategoryFilterChip - Enhanced Design
+struct CategoryFilterChip: View {
+    let label: String
+    let isSelected: Bool
+    let icon: String?
+    let iconColor: Color
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon = icon {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isSelected ? .white : iconColor)
+            }
+            Text(label)
+                .font(.system(size: 14, weight: .semibold))
+        }
+        .padding(.horizontal, isSelected ? 18 : 16)
+        .padding(.vertical, 10)
+        .foregroundColor(isSelected ? .white : HomeColors.darkGray)
+        .background(isSelected ? HomeColors.darkGray : Color.white)
+        .cornerRadius(20)
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(isSelected ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(
+            color: isSelected ? Color.black.opacity(0.1) : Color.black.opacity(0.05),
+            radius: isSelected ? 4 : 2,
+            x: 0,
+            y: isSelected ? 2 : 1
+        )
+    }
+}
+
+// MARK: - FoodItemCard - Professional Design Matching Reference
+struct FoodItemCard: View {
+    let item: FoodItem
+    @State private var isFavorite = false
+    @State private var isBookmarked = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Image Section (Placeholder)
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.15))
+                    .frame(height: 180)
+                    .overlay(
+                        VStack {
+                            Image(systemName: "photo")
+                                .font(.system(size: 40))
+                                .foregroundColor(.gray.opacity(0.5))
+                        }
+                    )
+                
+                // Prepare Time Badge - Top Left
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 11))
+                    Text("Prepare \(item.prepareTime) min")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(HomeColors.darkGray)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.95))
+                .cornerRadius(12)
+                .padding(12)
+                
+                // Three Dots Menu - Top Right
+                Button(action: {}) {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(HomeColors.darkGray)
+                        .frame(width: 32, height: 32)
+                        .background(Color.white.opacity(0.9))
+                        .clipShape(Circle())
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            
+            // Content Section
+            VStack(alignment: .leading, spacing: 12) {
+                // Rating - Top
+                HStack(spacing: 4) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.yellow)
+                    Text(String(format: "%.1f", item.rating))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(HomeColors.darkGray)
+                }
+                
+                // Item Name
+                Text(item.name)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(HomeColors.darkGray)
+                    .lineLimit(2)
+                
+                // Price and Action Icons
+                HStack {
+                    // Price
+                    Text("\(Int(item.price)) DT")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(HomeColors.darkGray)
+                    
+                    Spacer()
+                    
+                    // Action Icons
+                    HStack(spacing: 16) {
+                        // Comment
+                        Button(action: {}) {
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // Share
+                        Button(action: {}) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 18))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // Favorite
+                        Button(action: { isFavorite.toggle() }) {
+                            Image(systemName: isFavorite ? "star.fill" : "star")
+                                .font(.system(size: 18))
+                                .foregroundColor(isFavorite ? .yellow : .gray)
+                        }
+                        
+                        // Bookmark
+                        Button(action: { isBookmarked.toggle() }) {
+                            Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 18))
+                                .foregroundColor(isBookmarked ? HomeColors.primary : .gray)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(Color.white)
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 4)
+    }
+}
+
+// MARK: - CategoryCard (For use in FoodyzApp.swift)
 struct CategoryCard: View {
     let icon: String
     let title: String
@@ -176,25 +436,6 @@ struct CategoryCard: View {
     }
 }
 
-// MARK: - FilterChip
-struct FilterChip: View {
-    let label: String
-    let isSelected: Bool
-    let icon: String?
-
-    var body: some View {
-        HStack(spacing: 6) {
-            if let icon = icon { Image(systemName: icon) }
-            Text(label).font(.system(size: 14, weight: .semibold))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .foregroundColor(isSelected ? AppColors.white : AppColors.darkGray)
-        .background(isSelected ? AppColors.darkGray : AppColors.lightGray)
-        .cornerRadius(20)
-        .shadow(color: isSelected ? .clear : Color.black.opacity(0.05), radius: 2)
-    }
-}
 
 // MARK: - Preview
 struct HomeUserScreen_Previews: PreviewProvider {

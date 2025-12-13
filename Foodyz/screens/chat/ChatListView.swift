@@ -104,9 +104,9 @@ struct ChatListView: View {
     @ViewBuilder
     private var statusSection: some View {
         if let error = viewModel.errorMessage {
-            StatusCard(text: error, systemImage: "exclamationmark.triangle.fill", tint: .red)
+            ChatStatusCard(text: error, systemImage: "exclamationmark.triangle.fill", tint: .red)
         } else if viewModel.conversations.isEmpty && !viewModel.isLoading {
-            StatusCard(
+            ChatStatusCard(
                 text: "No recent conversations. Tap the button below to start chatting.",
                 systemImage: "bubble.left.and.bubble.right.fill",
                 tint: AppColors.primary
@@ -188,7 +188,7 @@ struct ChatListView: View {
     }
 }
 
-private struct StatusCard: View {
+private struct ChatStatusCard: View {
     let text: String
     let systemImage: String
     let tint: Color

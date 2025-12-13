@@ -17,6 +17,7 @@ struct DrawerView: View {
     let menuItems: [DrawerItem] = [
         DrawerItem(icon: "house.fill", label: "Home", route: "home", isLogout: false),
         DrawerItem(icon: "bubble.left.and.bubble.right.fill", label: "Messages", route: "chat", isLogout: false),
+        DrawerItem(icon: "exclamationmark.triangle.fill", label: "Reclamations", route: "reclamations", isLogout: false),
         DrawerItem(icon: "gearshape.fill", label: "Settings", route: "settings", isLogout: false),
         DrawerItem(icon: "heart.fill", label: "Favorites", route: "favorites", isLogout: false),
         DrawerItem(icon: "person.fill", label: "Profile", route: "profile", isLogout: false),

@@ -4,7 +4,7 @@ import SwiftUI
 class ReclamationListViewController: UIViewController {
     
     // MARK: - Properties
-    private var reclamations: [ReclamationDTO] = []
+    private var reclamations: [ReclamationResponseDTO] = []
     private var isLoading = false
     
     // MARK: - UI Components
@@ -238,18 +238,49 @@ extension ReclamationListViewController: UITableViewDataSource {
 // MARK: - UITableViewDelegate
 extension ReclamationListViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let reclamation = reclamations[indexPath.row]
+        let reclamationDTO = reclamations[indexPath.row]
+        
+        // Map status from backend string to ReclamationStatus
+        let status: ReclamationStatus = {
+            switch reclamationDTO.statut.lowercased() {
+            case "resolue", "résolue":
+                return .resolved
+            case "rejetee", "rejetée":
+                return .rejected
+            case "en_attente", "en_cours":
+                return .pending
+            default:
+                return .pending
+            }
+        }()
+        
+        // Parse date from ISO string
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = dateFormatter.date(from: reclamationDTO.createdAt) ?? Date()
+        
+        // Build full photo URLs from backend paths
+        let baseURL = AppAPIConstants.baseURL
+        let photoUrls = (reclamationDTO.photos ?? []).map { photoPath in
+            if photoPath.hasPrefix("http") {
+                return photoPath
+            } else {
+                let cleanPath = photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath
+                return "\(baseURL)/\(cleanPath)"
+            }
+        }
         
         // Navigation vers les détails (SwiftUI)
         let detailView = ReclamationDetailView(
             reclamation: Reclamation(
-                orderNumber: "Commande \(reclamation.commandeConcernee)",
-                complaintType: reclamation.complaintType,
-                description: reclamation.description,
-                photos: [], // Vous pouvez ajouter la conversion d'images si nécessaire
-                status: .pending, // Adapter selon votre logique
-                date: Date(),
-                response: nil
+                id: reclamationDTO._id,
+                orderNumber: "Commande #\(reclamationDTO.commandeConcernee.prefix(8))",
+                complaintType: reclamationDTO.complaintType,
+                description: reclamationDTO.description,
+                photoUrls: photoUrls,
+                status: status,
+                date: date,
+                response: reclamationDTO.responseMessage
             )
         ) {
             // Action de retour
@@ -397,17 +428,29 @@ class ReclamationTableViewCell: UITableViewCell {
         ])
     }
     
-    func configure(with reclamation: ReclamationDTO) {
-        orderNumberLabel.text = "Commande \(reclamation.commandeConcernee)"
+    func configure(with reclamation: ReclamationResponseDTO) {
+        orderNumberLabel.text = "Commande #\(reclamation.commandeConcernee.prefix(8))"
         complaintTypeLabel.text = reclamation.complaintType
         descriptionLabel.text = reclamation.description
         
-        // Configuration du badge de statut (En attente par défaut)
-        let statusColor = UIColor(ReclamationBrandColors.orange)
+        // Map status from backend string to UI
+        let (statusColor, statusIcon, statusText): (UIColor, String, String) = {
+            switch reclamation.statut.lowercased() {
+            case "resolue", "résolue":
+                return (UIColor(ReclamationBrandColors.green), "checkmark.circle.fill", "Résolue")
+            case "rejetee", "rejetée":
+                return (UIColor(ReclamationBrandColors.red), "xmark.circle.fill", "Rejetée")
+            case "en_attente", "en_cours":
+                return (UIColor(ReclamationBrandColors.orange), "clock.fill", "En attente")
+            default:
+                return (UIColor(ReclamationBrandColors.orange), "clock.fill", "En attente")
+            }
+        }()
+        
         statusBadgeView.backgroundColor = statusColor.withAlphaComponent(0.1)
-        statusIconImageView.image = UIImage(systemName: "clock.fill")
+        statusIconImageView.image = UIImage(systemName: statusIcon)
         statusIconImageView.tintColor = statusColor
         statusLabel.textColor = statusColor
-        statusLabel.text = "En attente"
+        statusLabel.text = statusText
     }
 }

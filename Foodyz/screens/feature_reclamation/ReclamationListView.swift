@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Brand Colors
 struct ReclamationBrandColors {
@@ -14,7 +15,7 @@ struct ReclamationBrandColors {
 }
 
 // MARK: - Data Models
-enum ReclamationStatus {
+enum ReclamationStatus: Hashable {
     case pending
     case resolved
     case rejected
@@ -25,7 +26,7 @@ struct Reclamation: Identifiable {
     let orderNumber: String
     let complaintType: String
     let description: String
-    let photos: [UIImage]
+    let photoUrls: [String]  // Changed from [UIImage] to [String] to store URLs
     let status: ReclamationStatus
     let date: Date
     let response: String?
@@ -35,7 +36,7 @@ struct Reclamation: Identifiable {
         orderNumber: String,
         complaintType: String,
         description: String,
-        photos: [UIImage] = [],
+        photoUrls: [String] = [],
         status: ReclamationStatus,
         date: Date = Date(),
         response: String? = nil
@@ -44,7 +45,7 @@ struct Reclamation: Identifiable {
         self.orderNumber = orderNumber
         self.complaintType = complaintType
         self.description = description
-        self.photos = photos
+        self.photoUrls = photoUrls
         self.status = status
         self.date = date
         self.response = response
@@ -53,43 +54,157 @@ struct Reclamation: Identifiable {
 
 // MARK: - Reclamation List View
 struct ReclamationListView: View {
-    var reclamations: [Reclamation] = []
-    var onReclamationClick: (Reclamation) -> Void = { _ in }
-    var onBackClick: () -> Void = {}
+    @StateObject private var viewModel = ReclamationListViewModel()
+    @Environment(\.dismiss) var dismiss
+    
+    var onBackClick: (() -> Void)? = nil
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                ReclamationBrandColors.background.ignoresSafeArea()
+        ZStack {
+            ReclamationBrandColors.background.ignoresSafeArea()
 
-                if reclamations.isEmpty {
-                    EmptyStateView()
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(reclamations) { reclamation in
-                                ReclamationCard(reclamation: reclamation) {
-                                    onReclamationClick(reclamation)
-                                }
-                                .frame(maxWidth: .infinity) // <- permet à la carte de prendre toute la largeur
-                            }
+            if viewModel.isLoading {
+                ProgressView()
+                    .scaleEffect(1.5)
+            } else if let error = viewModel.errorMessage {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 48))
+                        .foregroundColor(ReclamationBrandColors.red)
+                    Text(error)
+                        .foregroundColor(ReclamationBrandColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    Button("Réessayer") {
+                        Task {
+                            await viewModel.loadReclamations()
                         }
-                        .padding(16)
                     }
+                    .buttonStyle(.borderedProminent)
+                }
+            } else if viewModel.reclamations.isEmpty {
+                ReclamationEmptyStateView()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.reclamations) { reclamation in
+                            NavigationLink(destination: {
+                                ReclamationDetailView(
+                                    reclamation: reclamation,
+                                    onBackClick: {
+                                        // Navigation will handle back automatically
+                                    }
+                                )
+                            }) {
+                                ReclamationCardContent(reclamation: reclamation)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(16)
+                }
+                .refreshable {
+                    await viewModel.loadReclamations()
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Mes Réclamations")
-                        .foregroundColor(ReclamationBrandColors.textPrimary)
-                        .fontWeight(.semibold)
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: onBackClick) {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(ReclamationBrandColors.textPrimary)
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Mes Réclamations")
+                    .foregroundColor(ReclamationBrandColors.textPrimary)
+                    .fontWeight(.semibold)
+            }
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: {
+                    if let onBackClick = onBackClick {
+                        onBackClick()
+                    } else {
+                        dismiss()
                     }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(ReclamationBrandColors.textPrimary)
+                }
+            }
+        }
+        .onAppear {
+            Task {
+                await viewModel.loadReclamations()
+            }
+        }
+    }
+}
+
+// MARK: - Reclamation List ViewModel
+@MainActor
+class ReclamationListViewModel: ObservableObject {
+    @Published var reclamations: [Reclamation] = []
+    @Published var isLoading: Bool = false
+    @Published var errorMessage: String? = nil
+    
+    func loadReclamations() async {
+        isLoading = true
+        errorMessage = nil
+        
+        ReclamationAPI.shared.getMyReclamations { [weak self] result in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.isLoading = false
+                
+                switch result {
+                case .success(let reclamationDTOs):
+                    print("✅ \(reclamationDTOs.count) réclamation(s) chargée(s)")
+                    // Convert ReclamationResponseDTO to Reclamation
+                    self.reclamations = reclamationDTOs.map { dto in
+                        // Map status from backend string to ReclamationStatus
+                        let status: ReclamationStatus = {
+                            switch dto.statut.lowercased() {
+                            case "resolue", "résolue":
+                                return .resolved
+                            case "rejetee", "rejetée":
+                                return .rejected
+                            case "en_attente", "en_cours":
+                                return .pending
+                            default:
+                                return .pending
+                            }
+                        }()
+                        
+                        // Parse date from ISO string
+                        let dateFormatter = ISO8601DateFormatter()
+                        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                        let date = dateFormatter.date(from: dto.createdAt) ?? Date()
+                        
+                        // Build full photo URLs from backend paths
+                        let baseURL = AppAPIConstants.baseURL
+                        let photoUrls = (dto.photos ?? []).map { photoPath in
+                            // If path already starts with http, use it as is, otherwise prepend base URL
+                            if photoPath.hasPrefix("http") {
+                                return photoPath
+                            } else {
+                                // Remove leading slash if present and construct full URL
+                                let cleanPath = photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath
+                                return "\(baseURL)/\(cleanPath)"
+                            }
+                        }
+                        
+                        return Reclamation(
+                            id: dto._id,
+                            orderNumber: "Commande #\(dto.commandeConcernee.prefix(8))",
+                            complaintType: dto.complaintType,
+                            description: dto.description,
+                            photoUrls: photoUrls,
+                            status: status,
+                            date: date,
+                            response: dto.responseMessage
+                        )
+                    }
+                    
+                case .failure(let error):
+                    print("❌ Erreur de chargement: \(error.localizedDescription)")
+                    self.errorMessage = "Impossible de charger les réclamations. \(error.localizedDescription)"
                 }
             }
         }
@@ -97,7 +212,7 @@ struct ReclamationListView: View {
 }
 
 // MARK: - Empty State
-struct EmptyStateView: View {
+struct ReclamationEmptyStateView: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "xmark.circle")
@@ -111,10 +226,9 @@ struct EmptyStateView: View {
     }
 }
 
-// MARK: - Reclamation Card
-struct ReclamationCard: View {
+// MARK: - Reclamation Card Content (for NavigationLink)
+struct ReclamationCardContent: View {
     let reclamation: Reclamation
-    let onClick: () -> Void
 
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -124,43 +238,53 @@ struct ReclamationCard: View {
     }
 
     var body: some View {
-        Button(action: onClick) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    HStack(spacing: 8) {
-                        Image(systemName: "cart.fill")
-                            .foregroundColor(ReclamationBrandColors.yellow)
-                            .font(.system(size: 20))
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "cart.fill")
+                        .foregroundColor(ReclamationBrandColors.yellow)
+                        .font(.system(size: 20))
 
-                        Text(reclamation.orderNumber)
-                            .fontWeight(.bold)
-                            .foregroundColor(ReclamationBrandColors.textPrimary)
-                            .font(.system(size: 16))
-                    }
-
-                    Spacer()
-
-                    StatusBadge(status: reclamation.status)
+                    Text(reclamation.orderNumber)
+                        .fontWeight(.bold)
+                        .foregroundColor(ReclamationBrandColors.textPrimary)
+                        .font(.system(size: 16))
                 }
 
-                Text(reclamation.complaintType)
-                    .fontWeight(.semibold)
-                    .foregroundColor(ReclamationBrandColors.textPrimary)
-                    .font(.system(size: 14))
+                Spacer()
 
-                Text(reclamation.description)
-                    .foregroundColor(ReclamationBrandColors.textSecondary)
-                    .font(.system(size: 13))
-                    .lineLimit(2)
-
-                Text(dateFormatter.string(from: reclamation.date))
-                    .foregroundColor(ReclamationBrandColors.textSecondary)
-                    .font(.system(size: 12))
+                StatusBadge(status: reclamation.status)
             }
-            .padding(16)
-            .background(Color.white)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+
+            Text(reclamation.complaintType)
+                .fontWeight(.semibold)
+                .foregroundColor(ReclamationBrandColors.textPrimary)
+                .font(.system(size: 14))
+
+            Text(reclamation.description)
+                .foregroundColor(ReclamationBrandColors.textSecondary)
+                .font(.system(size: 13))
+                .lineLimit(2)
+
+            Text(dateFormatter.string(from: reclamation.date))
+                .foregroundColor(ReclamationBrandColors.textSecondary)
+                .font(.system(size: 12))
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+    }
+}
+
+// MARK: - Reclamation Card (with Button for backward compatibility)
+struct ReclamationCard: View {
+    let reclamation: Reclamation
+    let onClick: () -> Void
+
+    var body: some View {
+        Button(action: onClick) {
+            ReclamationCardContent(reclamation: reclamation)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -201,33 +325,6 @@ struct StatusBadge: View {
 // MARK: - Preview
 struct ReclamationListView_Previews: PreviewProvider {
     static var previews: some View {
-        ReclamationListView(
-            reclamations: [
-                Reclamation(
-                    orderNumber: "Commande #12345",
-                    complaintType: "Late delivery",
-                    description: "Ma commande est arrivée avec 45 minutes de retard et les plats étaient froids.",
-                    status: .pending,
-                    date: Date()
-                ),
-                Reclamation(
-                    orderNumber: "Commande #12344",
-                    complaintType: "Missing item",
-                    description: "Il manquait une boisson dans ma commande.",
-                    status: .resolved,
-                    date: Date().addingTimeInterval(-86400),
-                    response: "Nous vous avons remboursé la boisson manquante."
-                ),
-                Reclamation(
-                    orderNumber: "Commande #12343",
-                    complaintType: "Quality issue",
-                    description: "Le burger était mal cuit et les frites étaient molles.",
-                    status: .rejected,
-                    date: Date().addingTimeInterval(-172800)
-                )
-            ]
-        ) { reclamation in
-            print("Clicked: \(reclamation.orderNumber)")
-        }
+        ReclamationListView()
     }
 }
