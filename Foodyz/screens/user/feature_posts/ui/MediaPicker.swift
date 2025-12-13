@@ -17,10 +17,19 @@ struct MediaPicker: UIViewControllerRepresentable {
     
     var mediaTypes: [PHPickerFilter] = [.images, .videos]
     var selectionLimit: Int = 1
+    var allowVideos: Bool = true // Whether to allow video selection
+    var appendToExisting: Bool = false // Whether to append to existing selection or replace
     
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration()
-        configuration.filter = .any(of: mediaTypes)
+        
+        // If videos are not allowed, only show images
+        if !allowVideos {
+            configuration.filter = .images
+        } else {
+            configuration.filter = .any(of: mediaTypes)
+        }
+        
         configuration.selectionLimit = selectionLimit
         
         let picker = PHPickerViewController(configuration: configuration)
@@ -49,7 +58,7 @@ struct MediaPicker: UIViewControllerRepresentable {
             guard !results.isEmpty else { return }
             
             let group = DispatchGroup()
-            var selectedMedia: [SelectedMedia] = []
+            var newMedia: [SelectedMedia] = []
             
             for result in results {
                 group.enter()
@@ -58,28 +67,33 @@ struct MediaPicker: UIViewControllerRepresentable {
                 
                 // Check if it's a video
                 if itemProvider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                    itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, error in
-                        defer { group.leave() }
-                        
-                        guard let url = url, error == nil else {
-                            print("Error loading video: \(error?.localizedDescription ?? "unknown")")
-                            return
-                        }
-                        
-                        do {
-                            let data = try Data(contentsOf: url)
-                            let thumbnail = self.generateVideoThumbnail(url: url)
+                    // Only allow video if videos are allowed and no images are already selected
+                    if parent.allowVideos {
+                        itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { url, error in
+                            defer { group.leave() }
                             
-                            DispatchQueue.main.async {
-                                selectedMedia.append(SelectedMedia(
-                                    data: data,
-                                    isVideo: true,
-                                    thumbnail: thumbnail
-                                ))
+                            guard let url = url, error == nil else {
+                                print("Error loading video: \(error?.localizedDescription ?? "unknown")")
+                                return
                             }
-                        } catch {
-                            print("Error reading video data: \(error.localizedDescription)")
+                            
+                            do {
+                                let data = try Data(contentsOf: url)
+                                let thumbnail = self.generateVideoThumbnail(url: url)
+                                
+                                DispatchQueue.main.async {
+                                    newMedia.append(SelectedMedia(
+                                        data: data,
+                                        isVideo: true,
+                                        thumbnail: thumbnail
+                                    ))
+                                }
+                            } catch {
+                                print("Error reading video data: \(error.localizedDescription)")
+                            }
                         }
+                    } else {
+                        group.leave()
                     }
                 }
                 // Check if it's an image
@@ -98,7 +112,7 @@ struct MediaPicker: UIViewControllerRepresentable {
                         }
                         
                         DispatchQueue.main.async {
-                            selectedMedia.append(SelectedMedia(
+                            newMedia.append(SelectedMedia(
                                 data: data,
                                 isVideo: false,
                                 thumbnail: image
@@ -111,7 +125,13 @@ struct MediaPicker: UIViewControllerRepresentable {
             }
             
             group.notify(queue: .main) {
-                self.parent.selectedMedia = selectedMedia
+                if self.parent.appendToExisting {
+                    // Append new media to existing selection (for adding more photos)
+                    self.parent.selectedMedia.append(contentsOf: newMedia)
+                } else {
+                    // Replace existing selection
+                    self.parent.selectedMedia = newMedia
+                }
             }
         }
         

@@ -194,6 +194,36 @@ struct UserPostDetailCard: View {
                 .background(Color.white)
                 .frame(maxWidth: .infinity)
             }
+            
+            // Price (if available)
+            if let price = post.price {
+                HStack {
+                    Text("\(price, specifier: "%.1f") TND")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.black)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .frame(maxWidth: .infinity)
+            }
+            
+            // Preparation Time (if available)
+            if let prepTime = post.preparationTime {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                        .foregroundColor(.gray)
+                    Text("\(prepTime) minutes")
+                        .font(.system(size: 15))
+                        .foregroundColor(.gray)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .frame(maxWidth: .infinity)
+            }
         }
         .background(Color.white)
         .cornerRadius(16)
@@ -205,7 +235,7 @@ struct UserPostDetailCard: View {
     private var videoThumbnailView: some View {
         if let thumbnailUrl = post.thumbnailUrl,
            !thumbnailUrl.isEmpty,
-           let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "localhost")) {
+           let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -226,7 +256,7 @@ struct UserPostDetailCard: View {
     @ViewBuilder
     private var clientGeneratedVideoThumbnail: some View {
         if let videoUrlString = post.mediaUrls.first,
-           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "localhost")) {
+           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
             VideoThumbnailView(videoUrl: videoUrl)
         } else {
             Rectangle()

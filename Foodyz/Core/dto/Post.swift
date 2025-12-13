@@ -57,6 +57,10 @@ struct Post: Identifiable {
     let aspectRatio: String?
     let createdAt: String
     let updatedAt: String
+    // NEW FIELDS
+    let foodType: String?  // Optional: One of FoodType enum values
+    let price: Double?     // Optional: Price in TND
+    let preparationTime: Int? // Optional: Preparation time in minutes
     
     /// Get display URL for the post (thumbnail for videos, first media for images)
     var displayImageUrl: String? {
@@ -75,8 +79,8 @@ struct Post: Identifiable {
     var fullDisplayImageUrl: String? {
         guard let url = displayImageUrl else { return nil }
         
-        // Handle Android emulator IP (10.0.2.2) -> localhost for iOS
-        let iosFriendlyUrl = url.replacingOccurrences(of: "10.0.2.2", with: "localhost")
+        // Handle Android emulator IP (10.0.2.2) -> machine IP for real device
+        let iosFriendlyUrl = url.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")
         
         if iosFriendlyUrl.hasPrefix("http") {
             return iosFriendlyUrl
@@ -84,7 +88,7 @@ struct Post: Identifiable {
         
         // Remove leading slash if present
         let cleanPath = iosFriendlyUrl.hasPrefix("/") ? String(iosFriendlyUrl.dropFirst()) : iosFriendlyUrl
-        return "http://localhost:3000/\(cleanPath)"
+        return "http://192.168.100.28:3000/\(cleanPath)"
     }
 }
 
@@ -107,6 +111,9 @@ extension Post: Codable {
         case aspectRatio
         case createdAt
         case updatedAt
+        case foodType
+        case price
+        case preparationTime
     }
     
     init(from decoder: Decoder) throws {
@@ -126,6 +133,9 @@ extension Post: Codable {
         createdAt = try container.decode(String.self, forKey: .createdAt)
         updatedAt = try container.decode(String.self, forKey: .updatedAt)
         ownerModel = try container.decodeIfPresent(OwnerModelType.self, forKey: .ownerModel)
+        foodType = try container.decodeIfPresent(String.self, forKey: .foodType)
+        price = try container.decodeIfPresent(Double.self, forKey: .price)
+        preparationTime = try container.decodeIfPresent(Int.self, forKey: .preparationTime)
         
         // Try to decode ownerId as populated object (new format)
         if let ownerObject = try? container.decode(Owner.self, forKey: .ownerId) {
@@ -162,6 +172,9 @@ extension Post: Codable {
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encodeIfPresent(ownerModel, forKey: .ownerModel)
         try container.encodeIfPresent(owner, forKey: .ownerId)
+        try container.encodeIfPresent(foodType, forKey: .foodType)
+        try container.encodeIfPresent(price, forKey: .price)
+        try container.encodeIfPresent(preparationTime, forKey: .preparationTime)
     }
 }
 
@@ -205,6 +218,9 @@ struct CreatePostRequest: Codable {
     let caption: String
     let mediaUrls: [String]
     let mediaType: MediaType
+    let foodType: String  // REQUIRED: One of FoodType enum values
+    let price: Double?    // Optional: Price in TND, must be >= 0 if provided
+    let preparationTime: Int? // Optional: Preparation time in minutes, must be >= 0 if provided
 }
 
 // MARK: - Upload Response

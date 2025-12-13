@@ -215,11 +215,4 @@ class TrendingViewModel: ObservableObject {
         }
     }
     
-    func savePost(_ postId: String) async {
-        do {
-            try await PostsAPI.shared.savePost(postId: postId)
-        } catch {
-            print("Error saving post: \(error)")
-        }
-    }
 }

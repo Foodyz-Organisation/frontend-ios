@@ -4,14 +4,11 @@ import SwiftUI
 struct UserPostCard: View {
     let post: Post
     @State private var isLiked: Bool
-    @State private var isBookmarked: Bool
     
     init(post: Post) {
         self.post = post
         // Initialize isLiked from LikesManager
         _isLiked = State(initialValue: LikesManager.shared.isLiked(postId: post.id))
-        // Initialize isBookmarked from SavesManager
-        _isBookmarked = State(initialValue: SavesManager.shared.isSaved(postId: post.id))
     }
     
     var body: some View {
@@ -119,21 +116,40 @@ struct UserPostCard: View {
                         .frame(height: 400)
                 }
                 
-                // Video indicator
-                if post.isVideo {
+                // Preparation Time Badge (if available) - top leading
+                if let prepTime = post.preparationTime {
                     HStack(spacing: 4) {
-                        Image(systemName: "video.fill")
-                            .font(.system(size: 12))
-                        if let duration = post.duration {
-                            Text(formatDuration(duration))
-                                .font(.system(size: 12, weight: .medium))
-                        }
+                        Image(systemName: "clock")
+                        Text("\(prepTime) minutes")
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.7))
-                    .foregroundColor(.white)
-                    .cornerRadius(8)
+                    .background(Color.white.opacity(0.9))
+                    .foregroundColor(Color(hex: "#1F2937"))
+                    .cornerRadius(12)
+                    .padding(12)
+                }
+                
+                // Video indicator - bottom leading (if no prep time) or below it
+                if post.isVideo {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if post.preparationTime == nil {
+                            Spacer()
+                        }
+                        HStack(spacing: 4) {
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 12))
+                            if let duration = post.duration {
+                                Text(formatDuration(duration))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.7))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
                     .padding(12)
                 }
             }
@@ -170,15 +186,6 @@ struct UserPostCard: View {
                 }
                 
                 Spacer()
-                
-                Button(action: {
-                    Task {
-                        await toggleBookmark()
-                    }
-                }) {
-                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                        .foregroundColor(isBookmarked ? Color(hex: "#F59E0B") : Color(hex: "#1F2937"))
-                }
             }
             .font(.system(size: 22))
             .padding(.horizontal, 16)
@@ -195,6 +202,18 @@ struct UserPostCard: View {
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "#1F2937"))
                         .lineLimit(3)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+            
+            // MARK: - Price (if available)
+            if let price = post.price {
+                HStack {
+                    Text("\(price, specifier: "%.1f") TND")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(Color(hex: "#1F2937"))
+                    Spacer()
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -222,65 +241,6 @@ struct UserPostCard: View {
     
     // MARK: - Actions
     
-    private func toggleBookmark() async {
-        // Don't optimistically update - wait for API success
-        let previousBookmarkedState = isBookmarked
-        
-        print("🔖 Toggling bookmark - Post ID: \(post.id), Current state: \(previousBookmarkedState)")
-        
-        do {
-            if previousBookmarkedState {
-                // Unsave
-                print("🔖 Unsave request for post: \(post.id)")
-                _ = try await PostsAPI.shared.unsavePost(postId: post.id)
-                // Only update UI and local storage if API call succeeds
-                isBookmarked = false
-                SavesManager.shared.removeSave(postId: post.id)
-                print("✅ Post unsaved successfully")
-            } else {
-                // Save
-                print("🔖 Save request for post: \(post.id)")
-                _ = try await PostsAPI.shared.savePost(postId: post.id)
-                // Only update UI and local storage if API call succeeds
-                isBookmarked = true
-                SavesManager.shared.addSave(postId: post.id)
-                print("✅ Post saved successfully")
-            }
-            // Notify parent to refresh
-            NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
-            NotificationCenter.default.post(name: NSNotification.Name("RefreshSavedPosts"), object: nil)
-        } catch {
-            // Don't update UI - keep previous state
-            print("❌ Error toggling bookmark: \(error)")
-            print("❌ Error details: \(error.localizedDescription)")
-            
-            // Check if it's a connection error
-            let errorString = error.localizedDescription.lowercased()
-            if errorString.contains("connection refused") || errorString.contains("could not connect") {
-                print("⚠️ Connection error - Backend server may not be running")
-                // Show alert or message to user
-            }
-            
-            // If error is conflict (already saved), it means user has already saved
-            // So we should unsave it instead
-            if errorString.contains("already saved") || errorString.contains("conflict") {
-                // User tried to save but already saved, so unsave it
-                print("⚠️ Post already saved, attempting to unsave...")
-                do {
-                    _ = try await PostsAPI.shared.unsavePost(postId: post.id)
-                    isBookmarked = false
-                    SavesManager.shared.removeSave(postId: post.id)
-                    // Notify parent to refresh
-                    NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
-                    NotificationCenter.default.post(name: NSNotification.Name("RefreshSavedPosts"), object: nil)
-                    print("✅ Post unsaved after conflict")
-                } catch {
-                    print("❌ Error unsaving after conflict: \(error)")
-                }
-            }
-        }
-    }
-    
     private func toggleLike() async {
         // Optimistically update UI
         let previousLikedState = isLiked
@@ -298,7 +258,6 @@ struct UserPostCard: View {
             }
             // Notify parent to refresh
             NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
-            NotificationCenter.default.post(name: NSNotification.Name("RefreshSavedPosts"), object: nil)
         } catch {
             // Revert optimistic update
             isLiked = previousLikedState
@@ -403,7 +362,10 @@ struct UserPostCard_Previews: PreviewProvider {
             duration: nil,
             aspectRatio: "1:1",
             createdAt: ISO8601DateFormatter().string(from: Date()),
-            updatedAt: ISO8601DateFormatter().string(from: Date())
+            updatedAt: ISO8601DateFormatter().string(from: Date()),
+            foodType: "Spicy",
+            price: 30.0,
+            preparationTime: 15
         )
         
         UserPostCard(post: samplePost)

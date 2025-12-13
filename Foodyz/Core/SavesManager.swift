@@ -25,24 +25,6 @@ class SavesManager {
         UserDefaults.standard.set(Array(posts), forKey: key)
     }
     
-    /// Check if a post is saved by current user
-    func isSaved(postId: String) -> Bool {
-        return getSavedPosts().contains(postId)
-    }
-    
-    /// Mark a post as saved
-    func addSave(postId: String) {
-        var savedPosts = getSavedPosts()
-        savedPosts.insert(postId)
-        saveSavedPosts(savedPosts)
-    }
-    
-    /// Remove save from a post
-    func removeSave(postId: String) {
-        var savedPosts = getSavedPosts()
-        savedPosts.remove(postId)
-        saveSavedPosts(savedPosts)
-    }
     
     /// Clear all saves (useful on logout)
     func clearSaves() {

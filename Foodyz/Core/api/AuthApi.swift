@@ -1,7 +1,7 @@
 import Foundation
 
 struct APIConstants {
-    static let baseURL = "http://localhost:3000/auth"
+    static let baseURL = "http://192.168.100.28:3000/auth"
 }
 
 enum AuthError: Error, LocalizedError {

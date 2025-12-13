@@ -4,69 +4,157 @@ import SwiftUI
 struct AddCaptionView: View {
     @Environment(\.dismiss) var dismiss
     let selectedMedia: [SelectedMedia]
+    var onPostCreated: (() -> Void)? = nil
     
     @State private var caption = ""
+    @State private var selectedFoodType: String? = nil
+    @State private var priceText: String = ""
+    @State private var preparationTimeText: String = ""
+    @State private var showFoodTypePicker = false
     @State private var isUploading = false
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var uploadProgress: Double = 0
+    @State private var foodTypes: [String] = []
     
     // Navigation to dismiss entire flow
     @Environment(\.presentationMode) var presentationMode
     
+    // Helper to create color from hex string to avoid ambiguity
+    private func hexColor(_ hex: String) -> Color {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r, g, b: UInt64
+        switch hex.count {
+        case 6:
+            r = (int >> 16) & 0xFF
+            g = (int >> 8) & 0xFF
+            b = int & 0xFF
+        default:
+            r = 1; g = 1; b = 1
+        }
+        return Color(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: 1.0)
+    }
+    
     var body: some View {
         ZStack {
-            Color(hex: "#FFFBEA")
+            hexColor("#FFFBEA")
                 .ignoresSafeArea()
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Media thumbnail
-                    if let firstMedia = selectedMedia.first, let thumbnail = firstMedia.thumbnail {
-                        HStack(spacing: 12) {
-                            Image(uiImage: thumbnail)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 80, height: 80)
-                                .clipped()
-                                .cornerRadius(12)
-                                .overlay(
-                                    Group {
-                                        if firstMedia.isVideo {
-                                            ZStack {
-                                                Color.black.opacity(0.3)
-                                                Image(systemName: "play.circle.fill")
-                                                    .foregroundColor(.white)
-                                                    .font(.title3)
+                    // Media preview
+                    if !selectedMedia.isEmpty {
+                        let hasVideo = selectedMedia.contains { $0.isVideo }
+                        let imageCount = selectedMedia.filter { !$0.isVideo }.count
+                        
+                        if selectedMedia.count == 1, let firstMedia = selectedMedia.first, let thumbnail = firstMedia.thumbnail {
+                            // Single media preview
+                            HStack(spacing: 12) {
+                                Image(uiImage: thumbnail)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 80, height: 80)
+                                    .clipped()
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        Group {
+                                            if firstMedia.isVideo {
+                                                ZStack {
+                                                    Color.black.opacity(0.3)
+                                                    Image(systemName: "play.circle.fill")
+                                                        .foregroundColor(.white)
+                                                        .font(.title3)
+                                                }
+                                                .cornerRadius(12)
                                             }
-                                            .cornerRadius(12)
+                                        }
+                                    )
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(firstMedia.isVideo ? "Video selected" : "Photo selected")
+                                        .font(.headline)
+                                        .foregroundColor(hexColor("#1F2937"))
+                                    
+                                    Text(formatBytes(firstMedia.data.count))
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(16)
+                            .shadow(color: Color.black.opacity(0.05), radius: 4)
+                        } else {
+                            // Multiple media preview (carousel)
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text(imageCount > 1 ? "Carousel (\(imageCount) photos)" : "Media selected")
+                                        .font(.headline)
+                                        .foregroundColor(hexColor("#1F2937"))
+                                    Spacer()
+                                }
+                                
+                                // Grid preview of all images
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(Array(selectedMedia.enumerated()), id: \.element.id) { index, media in
+                                            if let thumbnail = media.thumbnail {
+                                                Image(uiImage: thumbnail)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 80, height: 80)
+                                                    .clipped()
+                                                    .cornerRadius(12)
+                                                    .overlay(
+                                                        Group {
+                                                            if media.isVideo {
+                                                                ZStack {
+                                                                    Color.black.opacity(0.3)
+                                                                    Image(systemName: "play.circle.fill")
+                                                                        .foregroundColor(.white)
+                                                                        .font(.caption)
+                                                                }
+                                                                .cornerRadius(12)
+                                                            }
+                                                        }
+                                                    )
+                                                    .overlay(
+                                                        // Photo number indicator
+                                                        Text("\(index + 1)")
+                                                            .font(.caption2)
+                                                            .fontWeight(.bold)
+                                                            .foregroundColor(.white)
+                                                            .padding(4)
+                                                            .background(Color.black.opacity(0.6))
+                                                            .clipShape(Circle()),
+                                                        alignment: .topTrailing
+                                                    )
+                                            }
                                         }
                                     }
-                                )
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(firstMedia.isVideo ? "Video selected" : "Photo selected")
-                                    .font(.headline)
-                                    .foregroundColor(Color(hex: "#1F2937"))
+                                    .padding(.horizontal, 4)
+                                }
                                 
-                                Text(formatBytes(firstMedia.data.count))
+                                Text("Total size: \(formatBytes(selectedMedia.reduce(0) { $0 + $1.data.count }))")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
-                            
-                            Spacer()
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(16)
+                            .shadow(color: Color.black.opacity(0.05), radius: 4)
                         }
-                        .padding()
-                        .background(Color.white)
-                        .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.05), radius: 4)
                     }
                     
                     // Caption input
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Write a caption")
                             .font(.headline)
-                            .foregroundColor(Color(hex: "#1F2937"))
+                            .foregroundColor(hexColor("#1F2937"))
                         
                         TextEditor(text: $caption)
                             .frame(minHeight: 150)
@@ -99,6 +187,66 @@ struct AddCaptionView: View {
                             .foregroundColor(.gray)
                     }
                     
+                    // Food Type Picker (Required)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Food Type *")
+                            .font(.headline)
+                            .foregroundColor(hexColor("#1F2937"))
+                        
+                        Button(action: {
+                            showFoodTypePicker = true
+                        }) {
+                            HStack {
+                                Text(selectedFoodType ?? "Select a food type...")
+                                    .foregroundColor(selectedFoodType == nil ? .gray : hexColor("#1F2937"))
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(selectedFoodType == nil ? Color.red.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                        }
+                    }
+                    
+                    // Price Input (Optional)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Price (TND)")
+                            .font(.headline)
+                            .foregroundColor(hexColor("#1F2937"))
+                        
+                        TextField("Ex: 30.0", text: $priceText)
+                            .keyboardType(.decimalPad)
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+                    
+                    // Preparation Time Input (Optional)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Preparation Time (minutes)")
+                            .font(.headline)
+                            .foregroundColor(hexColor("#1F2937"))
+                        
+                        TextField("Ex: 15", text: $preparationTimeText)
+                            .keyboardType(.numberPad)
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+                    
                     Spacer(minLength: 40)
                 }
                 .padding()
@@ -113,7 +261,7 @@ struct AddCaptionView: View {
                     VStack(spacing: 20) {
                         ProgressView()
                             .scaleEffect(1.5)
-                            .tint(Color(hex: "#F59E0B"))
+                            .tint(hexColor("#F59E0B"))
                         
                         Text("Uploading your post...")
                             .font(.headline)
@@ -121,7 +269,7 @@ struct AddCaptionView: View {
                         
                         if uploadProgress > 0 {
                             ProgressView(value: uploadProgress, total: 100)
-                                .tint(Color(hex: "#F59E0B"))
+                                .tint(hexColor("#F59E0B"))
                                 .frame(width: 200)
                         }
                     }
@@ -137,14 +285,14 @@ struct AddCaptionView: View {
         .navigationTitle("New Post")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .toolbar {
+        .toolbar(content: {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: { dismiss() }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
                         Text("Back")
                     }
-                    .foregroundColor(Color(hex: "#F59E0B"))
+                    .foregroundColor(hexColor("#F59E0B"))
                 }
                 .disabled(isUploading)
             }
@@ -155,14 +303,33 @@ struct AddCaptionView: View {
                         await uploadPost()
                     }
                 }
-                .foregroundColor(caption.isEmpty || isUploading ? .gray : Color(hex: "#F59E0B"))
-                .disabled(caption.isEmpty || isUploading)
+                .foregroundColor(caption.isEmpty || selectedFoodType == nil || isUploading ? .gray : hexColor("#F59E0B"))
+                .disabled(caption.isEmpty || selectedFoodType == nil || isUploading)
             }
+        })
+        .sheet(isPresented: $showFoodTypePicker) {
+            FoodTypePickerView(selectedFoodType: $selectedFoodType, foodTypes: foodTypes)
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage)
+        }
+        .onAppear {
+            Task {
+                await loadFoodTypes()
+            }
+        }
+    }
+    
+    // MARK: - Load Food Types
+    private func loadFoodTypes() async {
+        do {
+            foodTypes = try await PostsAPI.shared.getFoodTypes()
+        } catch {
+            print("Failed to load food types: \(error.localizedDescription)")
+            // Fallback to enum values if API fails
+            foodTypes = FoodType.getAllValues()
         }
     }
     
@@ -180,6 +347,46 @@ struct AddCaptionView: View {
             return
         }
         
+        guard let foodType = selectedFoodType else {
+            errorMessage = "Please select a food type"
+            showError = true
+            return
+        }
+        
+        // Validate price
+        var price: Double? = nil
+        if !priceText.isEmpty {
+            if let parsedPrice = Double(priceText) {
+                if parsedPrice < 0 {
+                    errorMessage = "Price must be >= 0"
+                    showError = true
+                    return
+                }
+                price = parsedPrice
+            } else {
+                errorMessage = "Invalid price format"
+                showError = true
+                return
+            }
+        }
+        
+        // Validate preparation time
+        var preparationTime: Int? = nil
+        if !preparationTimeText.isEmpty {
+            if let parsedPrepTime = Int(preparationTimeText) {
+                if parsedPrepTime < 0 {
+                    errorMessage = "Preparation time must be >= 0"
+                    showError = true
+                    return
+                }
+                preparationTime = parsedPrepTime
+            } else {
+                errorMessage = "Invalid preparation time format"
+                showError = true
+                return
+            }
+        }
+        
         isUploading = true
         uploadProgress = 0
         
@@ -187,7 +394,8 @@ struct AddCaptionView: View {
             // Step 1: Upload media files
             uploadProgress = 10
             let mediaDataArray = selectedMedia.map { $0.data }
-            let uploadResponse = try await PostsAPI.shared.uploadMedia(mediaData: mediaDataArray)
+            let isVideoArray = selectedMedia.map { $0.isVideo }
+            let uploadResponse = try await PostsAPI.shared.uploadMedia(mediaData: mediaDataArray, isVideoArray: isVideoArray)
             
             guard !uploadResponse.urls.isEmpty else {
                 throw PostsError.serverError("No URLs returned from upload")
@@ -196,7 +404,20 @@ struct AddCaptionView: View {
             uploadProgress = 50
             
             // Step 2: Determine media type
-            let mediaType: MediaType = selectedMedia.first?.isVideo == true ? .reel : .image
+            // - If any media is video, it's a reel (single video only)
+            // - If multiple images, it's a carousel
+            // - If single image, it's an image
+            let hasVideo = selectedMedia.contains { $0.isVideo }
+            let imageCount = selectedMedia.filter { !$0.isVideo }.count
+            
+            let mediaType: MediaType
+            if hasVideo {
+                mediaType = .reel
+            } else if imageCount > 1 {
+                mediaType = .carousel
+            } else {
+                mediaType = .image
+            }
             
             // Step 3: Determine owner type based on user role
             let userRole = UserSession.shared.userRole ?? "user"
@@ -209,7 +430,10 @@ struct AddCaptionView: View {
                 ownerType: ownerType,
                 caption: caption,
                 mediaUrls: uploadResponse.urls,
-                mediaType: mediaType
+                mediaType: mediaType,
+                foodType: foodType,
+                price: price,
+                preparationTime: preparationTime
             )
             
             uploadProgress = 100
@@ -219,14 +443,17 @@ struct AddCaptionView: View {
             // Dismiss the entire post creation flow
             // Navigate back to root (HomeUserScreen)
             await MainActor.run {
-                // Dismiss current view and parent view
-                presentationMode.wrappedValue.dismiss()
-                
-                // Post notification to refresh posts feed
+                // Post notification to refresh posts feed first
                 NotificationCenter.default.post(
                     name: NSNotification.Name("RefreshPostsFeed"),
                     object: nil
                 )
+                
+                // Call the completion handler to dismiss the entire sheet
+                onPostCreated?()
+                
+                // Also dismiss navigation (fallback)
+                dismiss()
             }
             
         } catch {
@@ -248,6 +475,35 @@ struct AddCaptionView: View {
         formatter.allowedUnits = [.useMB, .useKB]
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
+    }
+}
+
+// MARK: - Food Type Picker View
+struct FoodTypePickerView: View {
+    @Binding var selectedFoodType: String?
+    @Environment(\.dismiss) var dismiss
+    let foodTypes: [String]
+    
+    var body: some View {
+        NavigationView {
+            List(foodTypes, id: \.self) { foodType in
+                Button(action: {
+                    selectedFoodType = foodType
+                    dismiss()
+                }) {
+                    HStack {
+                        Text(foodType)
+                        Spacer()
+                        if selectedFoodType == foodType {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(Color(red: 0.99, green: 0.69, blue: 0.16))
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Select Food Type")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }
 

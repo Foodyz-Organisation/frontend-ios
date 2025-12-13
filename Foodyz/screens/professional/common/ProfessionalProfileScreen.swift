@@ -416,7 +416,7 @@ struct MediaGridItem: View {
             if post.isVideo {
                 if let thumbnailUrl = post.thumbnailUrl,
                    !thumbnailUrl.isEmpty,
-                   let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "localhost")) {
+                   let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
                     // Use server-generated thumbnail
                     AsyncImage(url: url) { phase in
                         switch phase {
@@ -479,7 +479,7 @@ struct MediaGridItem: View {
     @ViewBuilder
     private var videoThumbnailFallback: some View {
         if let videoUrlString = post.mediaUrls.first,
-           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "localhost")) {
+           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
             VideoThumbnailView(videoUrl: videoUrl)
                 .frame(width: itemSize, height: itemSize)
                 .clipped()

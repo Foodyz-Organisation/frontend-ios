@@ -2,10 +2,14 @@ import SwiftUI
 
 /// Screen for professionals to choose content type to create
 struct ProfessionalAddContentScreen: View {
-    @Environment(\.dismiss) var dismiss
+    @Binding var path: NavigationPath
     @State private var showCreatePost = false
     @State private var showComingSoonAlert = false
     @State private var comingSoonType = ""
+    
+    init(path: Binding<NavigationPath>) {
+        self._path = path
+    }
     
     var body: some View {
         ZStack {
@@ -17,7 +21,7 @@ struct ProfessionalAddContentScreen: View {
                 // Custom header
                 HStack {
                     Button(action: {
-                        dismiss()
+                        path.removeLast()
                     }) {
                         HStack(spacing: 4) {
                             Image(systemName: "chevron.left")
@@ -96,7 +100,17 @@ struct ProfessionalAddContentScreen: View {
         }
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $showCreatePost) {
-            MediaSelectionView()
+            MediaSelectionView(
+                isPresented: $showCreatePost,
+                onPostCreated: {
+                    // When post is created, dismiss sheet and navigate back to HomeProfessionalScreen
+                    showCreatePost = false
+                    // Navigate back to home screen after a short delay to allow sheet to dismiss
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        path.removeLast()
+                    }
+                }
+            )
         }
         .alert("Coming Soon", isPresented: $showComingSoonAlert) {
             Button("OK", role: .cancel) {}
@@ -161,6 +175,6 @@ struct ContentTypeCard: View {
 
 struct ProfessionalAddContentScreen_Previews: PreviewProvider {
     static var previews: some View {
-        ProfessionalAddContentScreen()
+        ProfessionalAddContentScreen(path: .constant(NavigationPath()))
     }
 }

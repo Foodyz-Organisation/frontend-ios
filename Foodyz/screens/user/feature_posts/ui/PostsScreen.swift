@@ -3,7 +3,8 @@ import Combine
 
 // MARK: - PostsScreen
 struct PostsScreen: View {
-    @StateObject private var viewModel = PostsViewModel()
+    @ObservedObject var viewModel: PostsViewModel
+    @Binding var selectedFoodType: String?
     var onPostClick: ((String) -> Void)? = nil
     
     var body: some View {
@@ -86,11 +87,19 @@ struct PostsScreen: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshPostsFeed"))) { _ in
             Task {
-                await viewModel.fetchPosts()
+                if selectedFoodType == nil {
+                    await viewModel.fetchPosts()
+                } else if let foodType = selectedFoodType {
+                    await viewModel.fetchPostsByFoodType(foodType)
+                }
             }
         }
         .refreshable {
-            await viewModel.fetchPosts()
+            if selectedFoodType == nil {
+                await viewModel.fetchPosts()
+            } else if let foodType = selectedFoodType {
+                await viewModel.fetchPostsByFoodType(foodType)
+            }
         }
     }
 }
@@ -101,6 +110,14 @@ class PostsViewModel: ObservableObject {
     @Published var posts: [Post] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var foodTypes: [String] = []
+    @Published var isLoadingFoodTypes = false
+    
+    init() {
+        Task {
+            await fetchFoodTypes()
+        }
+    }
     
     func fetchPosts() async {
         isLoading = true
@@ -129,13 +146,50 @@ class PostsViewModel: ObservableObject {
         
         isLoading = false
     }
+    
+    func fetchPostsByFoodType(_ foodType: String) async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let fetchedPosts = try await PostsAPI.shared.getPostsByFoodType(foodType)
+            // Sort by creation date (newest first)
+            posts = fetchedPosts.sorted { post1, post2 in
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                let date1 = formatter.date(from: post1.createdAt) ?? Date.distantPast
+                let date2 = formatter.date(from: post2.createdAt) ?? Date.distantPast
+                
+                return date1 > date2
+            }
+        } catch {
+            if let postsError = error as? PostsError {
+                errorMessage = postsError.localizedDescription
+            } else {
+                errorMessage = error.localizedDescription
+            }
+            print("Error fetching posts by food type: \(error)")
+        }
+        
+        isLoading = false
+    }
+    
+    func fetchFoodTypes() async {
+        isLoadingFoodTypes = true
+        do {
+            foodTypes = try await PostsAPI.shared.getFoodTypes()
+        } catch {
+            print("Failed to fetch food types: \(error.localizedDescription)")
+        }
+        isLoadingFoodTypes = false
+    }
 }
 
 // MARK: - RecipeCard
 struct RecipeCard: View {
     let post: Post
     @State private var isFavorite: Bool
-    @State private var isBookmarked = false
     @State private var showProfile = false
     
     init(post: Post) {
@@ -211,60 +265,76 @@ struct RecipeCard: View {
                         .cornerRadius(24, corners: [.topLeft, .topRight])
                 }
                 
-                // User info badge (clickable)
-                Button(action: {
-                    if post.owner != nil {
-                        showProfile = true
-                    }
-                }) {
-                    HStack(spacing: 6) {
-                        // User avatar
-                        if let profileUrl = post.owner?.profilePictureUrl,
-                           !profileUrl.isEmpty,
-                           let url = URL(string: profileUrl) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 24, height: 24)
-                                        .clipShape(Circle())
-                                case .failure(_), .empty:
-                                    Circle()
-                                        .fill(Color(hex: "#F59E0B"))
-                                        .frame(width: 24, height: 24)
-                                        .overlay(
-                                            Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
-                                                .font(.system(size: 12, weight: .bold))
-                                                .foregroundColor(.white)
-                                        )
-                                @unknown default:
-                                    Circle()
-                                        .fill(Color.gray)
-                                        .frame(width: 24, height: 24)
-                                }
-                            }
-                        } else {
-                            Circle()
-                                .fill(Color(hex: "#F59E0B"))
-                                .frame(width: 24, height: 24)
-                                .overlay(
-                                    Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
+                VStack(alignment: .leading, spacing: 8) {
+                    // User info badge (clickable)
+                    Button(action: {
+                        if post.owner != nil {
+                            showProfile = true
                         }
-                        
-                        Text(post.owner?.displayName ?? "User")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color(hex: "#1F2937"))
+                    }) {
+                        HStack(spacing: 6) {
+                            // User avatar
+                            if let profileUrl = post.owner?.profilePictureUrl,
+                               !profileUrl.isEmpty,
+                               let url = URL(string: profileUrl) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 24, height: 24)
+                                            .clipShape(Circle())
+                                    case .failure(_), .empty:
+                                        Circle()
+                                            .fill(Color(hex: "#F59E0B"))
+                                            .frame(width: 24, height: 24)
+                                            .overlay(
+                                                Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
+                                                    .font(.system(size: 12, weight: .bold))
+                                                    .foregroundColor(.white)
+                                            )
+                                    @unknown default:
+                                        Circle()
+                                            .fill(Color.gray)
+                                            .frame(width: 24, height: 24)
+                                    }
+                                }
+                            } else {
+                                Circle()
+                                    .fill(Color(hex: "#F59E0B"))
+                                    .frame(width: 24, height: 24)
+                                    .overlay(
+                                        Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                    )
+                            }
+                            
+                            Text(post.owner?.displayName ?? "User")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Color(hex: "#1F2937"))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.9))
+                        .cornerRadius(12)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.9))
-                    .cornerRadius(12)
                     .padding(12)
+                    
+                    // Preparation Time Badge (if available)
+                    if let prepTime = post.preparationTime {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                            Text("\(prepTime) minutes")
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.9))
+                        .foregroundColor(Color(hex: "#1F2937"))
+                        .cornerRadius(12)
+                        .padding(.leading, 12)
+                    }
                 }
                 
                 // Favorite icon
@@ -353,18 +423,16 @@ struct RecipeCard: View {
                 }
                 
                 HStack {
-                    // Price = placeholder for now
-                    Text("Free")
-                        .font(.system(size: 18, weight: .bold))
+                    // Price (if available)
+                    if let price = post.price {
+                        Text("\(price, specifier: "%.1f") TND")
+                            .font(.system(size: 18, weight: .bold))
+                    }
                     Spacer()
                     HStack(spacing: 16) {
                         Image(systemName: "message")
                         Image(systemName: "square.and.arrow.up")
                         Image(systemName: "star")
-                        Button { isBookmarked.toggle() } label: {
-                            Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                                .foregroundColor(isBookmarked ? Color(hex: "#4F46E5") : Color.gray)
-                        }
                     }
                     .font(.system(size: 20))
                     .foregroundColor(Color.gray)
@@ -473,6 +541,7 @@ struct RecipeCard: View {
     }
 }
 
+
 // MARK: - Helpers (Redefined here for PostsScreen to be self-contained as per your prompt)
 extension Color {
     init(hex: String) {
@@ -509,8 +578,11 @@ struct RoundedCorner: Shape {
 // MARK: - Preview
 struct PostsScreen_Previews: PreviewProvider {
     static var previews: some View {
-        PostsScreen()
-            .previewLayout(.sizeThatFits)
-            .padding()
+        PostsScreen(
+            viewModel: PostsViewModel(),
+            selectedFoodType: .constant(nil)
+        )
+        .previewLayout(.sizeThatFits)
+        .padding()
     }
 }

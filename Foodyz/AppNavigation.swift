@@ -87,7 +87,7 @@ struct AppNavigation: View {
                     )
                     
                 case .professionalAddContent:
-                    ProfessionalAddContentScreen()
+                    ProfessionalAddContentScreen(path: $path)
                     
                 case .professionalProfile(let professionalId):
                     ProfessionalProfileScreen(
