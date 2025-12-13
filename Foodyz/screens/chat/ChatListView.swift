@@ -12,6 +12,7 @@ struct ChatListView: View {
     @State private var isPeerSelectorPresented = false
     @State private var isStartingConversation = false
     @State private var startConversationError: String?
+    @State private var isDeleteConfirmationPresented = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -39,9 +40,8 @@ struct ChatListView: View {
                 _ = await (convTask, peerTask)
             }
             .task {
-                async let convTask: Void = viewModel.loadConversations()
-                async let peerTask: Void = viewModel.loadPeers()
-                _ = await (convTask, peerTask)
+                await viewModel.loadPeers()
+                await viewModel.loadConversations()
                 viewModel.startAutoRefresh()
             }
             .onDisappear {
@@ -60,6 +60,26 @@ struct ChatListView: View {
         }
         .background(AppColors.background.ignoresSafeArea())
         .navigationTitle(role == .professional ? "Client Chats" : "Messages")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(role: .destructive) {
+                    isDeleteConfirmationPresented = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+            }
+        }
+        .alert("Delete All Chats?", isPresented: $isDeleteConfirmationPresented) {
+            Button("Delete All", role: .destructive) {
+                Task {
+                    await viewModel.deleteAllConversations()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently delete all your conversations and messages.")
+        }
         .sheet(isPresented: $isPeerSelectorPresented) {
             PeerSelectorView(initialPeers: viewModel.peers) { peer in
                 startConversation(with: peer)
@@ -140,6 +160,7 @@ struct ChatListView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .contentShape(Rectangle()) // Ensure tap target covers the whole row within the button
         .padding()
         .background(AppColors.white)
         .cornerRadius(24)
@@ -224,11 +245,13 @@ final class ChatListViewModel: ObservableObject {
     @Published var peersErrorMessage: String?
 
     private let chatAPI: ChatAPI
+    private let userAPI: UserAPI
     private var refreshTask: Task<Void, Never>?
     private var peersDictionary: [String: ChatPeer] = [:]
 
-    init(chatAPI: ChatAPI? = nil) {
+    init(chatAPI: ChatAPI? = nil, userAPI: UserAPI? = nil) {
         self.chatAPI = chatAPI ?? ChatAPI.shared
+        self.userAPI = userAPI ?? UserAPI.shared
     }
 
     deinit {
@@ -241,6 +264,7 @@ final class ChatListViewModel: ObservableObject {
         do {
             let response = try await chatAPI.fetchConversations()
             conversations = response
+            await fetchMissingPeers()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -250,14 +274,73 @@ final class ChatListViewModel: ObservableObject {
     func loadPeers(force: Bool = false) async {
         if !force, !peers.isEmpty { return }
         do {
+            let currentUserId = await MainActor.run { SessionManager.shared.userId }
             let response = try await chatAPI.fetchPeers()
-            peers = response.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-            peersDictionary = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0) })
-            peersErrorMessage = nil
+            let filtered = response.filter { $0.id != currentUserId }
+            updatePeers(with: filtered)
         } catch {
             peersErrorMessage = error.localizedDescription
         }
     }
+
+
+
+    private func fetchMissingPeers() async {
+        let currentUserId = SessionManager.shared.userId
+         // Re-calculate existing IDs from the dictionary to be safe
+        let existingPeerIds = Set(peersDictionary.keys)
+        
+        var missingIds = Set<String>()
+        for conversation in conversations {
+            guard conversation.kind == .privateChat else { continue }
+            for participant in conversation.participants {
+                if participant != currentUserId && !existingPeerIds.contains(participant) {
+                    missingIds.insert(participant)
+                }
+            }
+        }
+        
+        guard !missingIds.isEmpty else { return }
+        
+        // Fetch sequentially to handle missing peers
+        for id in missingIds {
+            // Check dictionary again in case a parallel task added it (unlikely here but good practice)
+            if peersDictionary[id] != nil { continue }
+
+            if let profile = try? await userAPI.fetchProfile(userId: id) {
+                let peer = ChatPeer(
+                    id: profile.id,
+                    name: profile.username,
+                    email: profile.email,
+                    role: profile.role ?? "user",
+                    kind: "user",
+                    avatarUrl: profile.avatarUrl
+                )
+                
+                // Update immediately so UI refreshes for this user
+                await MainActor.run {
+                    updatePeers(with: [peer], appending: true)
+                }
+            }
+        }
+    }
+
+    private func updatePeers(with newPeers: [ChatPeer], appending: Bool = false) {
+        if appending {
+            var combined = peers
+            for peer in newPeers {
+                if !peersDictionary.keys.contains(peer.id) {
+                    combined.append(peer)
+                    peersDictionary[peer.id] = peer
+                }
+            }
+            peers = combined.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        } else {
+            peers = newPeers.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            peersDictionary = Dictionary(uniqueKeysWithValues: newPeers.map { ($0.id, $0) })
+        }
+    }
+
 
     func startAutoRefresh(interval: TimeInterval = 10) {
         guard refreshTask == nil else { return }
@@ -306,6 +389,17 @@ final class ChatListViewModel: ObservableObject {
         return conversation
     }
 
+    func deleteAllConversations() async {
+        isLoading = true
+        do {
+            try await chatAPI.deleteAllConversations()
+            conversations = []
+        } catch {
+            errorMessage = "Failed to delete conversations: \(error.localizedDescription)"
+        }
+        isLoading = false
+    }
+
     private func upsertConversation(_ conversation: ConversationDTO) {
         if let index = conversations.firstIndex(where: { $0.id == conversation.id }) {
             conversations[index] = conversation
@@ -315,15 +409,19 @@ final class ChatListViewModel: ObservableObject {
     }
 
     private func resolvedTitle(for conversation: ConversationDTO, currentUserId: String?) -> String? {
+        // For private chats, always try to use the peer's name first
+        if conversation.kind == .privateChat,
+           let otherId = otherParticipant(in: conversation, excluding: currentUserId),
+           let peer = peersDictionary[otherId] {
+            return peer.name
+        }
+        
+        // Fallback to conversation title if available
         if let title = conversation.title, !title.isEmpty {
             return title
         }
-        guard conversation.kind == .privateChat,
-              let otherId = otherParticipant(in: conversation, excluding: currentUserId),
-              let peer = peersDictionary[otherId] else {
-            return nil
-        }
-        return peer.name
+        
+        return nil
     }
 
     private func otherParticipant(in conversation: ConversationDTO, excluding currentUserId: String?) -> String? {

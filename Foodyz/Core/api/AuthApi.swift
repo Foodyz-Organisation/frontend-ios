@@ -1,7 +1,9 @@
 import Foundation
 
 struct APIConstants {
-    static let baseURL = "http://localhost:3000/auth"
+    static var baseURL: String {
+        return "\(APIConfig.baseURLString)/auth"
+    }
 }
 
 enum AuthError: Error, LocalizedError {

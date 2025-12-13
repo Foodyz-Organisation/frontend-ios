@@ -42,7 +42,7 @@ struct UserProfileView: View {
         .task {
             await viewModel.loadProfile(force: false)
         }
-        .onChange(of: avatarItem) { _, newItem in
+        .onChange(of: avatarItem) { newItem in
             Task { await processAvatarSelection(newItem) }
         }
         .overlay(alignment: .center) {

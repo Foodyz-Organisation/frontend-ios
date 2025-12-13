@@ -14,13 +14,26 @@ enum Screen: Hashable {
 
 struct AppNavigation: View {
     @State private var path = NavigationPath()
+    @State private var incomingCallOffer: [String: Any]?
+    @State private var isIncomingCallPresented = false
+    @EnvironmentObject private var session: SessionManager
     
     var body: some View {
         NavigationStack(path: $path) {
             
             // Root view — Splash screen
             SplashView(onFinished: {
-                path.append(Screen.login)
+                if session.accessToken != nil {
+                    // Re-connect socket if we have session
+                    connectSocket()
+                    if session.role == .professional {
+                         path.append(Screen.homeProfessional)
+                    } else {
+                         path.append(Screen.homeUser)
+                    }
+                } else {
+                    path.append(Screen.login)
+                }
             })
             
             .navigationDestination(for: Screen.self) { screen in
@@ -32,6 +45,7 @@ struct AppNavigation: View {
                     LoginView(
                         onSignup: { path.append(Screen.userSignup) },
                         onLoginSuccess: { role in
+                            connectSocket()
                             path.removeLast(path.count)
                             switch role { // <-- match enum, not string
                             case .user:
@@ -60,6 +74,7 @@ struct AppNavigation: View {
                             case "profile":
                                 path.append(Screen.userProfile)
                             case "login":
+                                disconnectSocket()
                                 path.removeLast(path.count)
                                 path.append(Screen.login)
                             default:
@@ -98,5 +113,32 @@ struct AppNavigation: View {
                 }
             }
         }
+        .onReceive(SocketIOManager.shared.callMadeSubject) { offerDict in
+             print("AppNavigation received call offer: \(offerDict)")
+             self.incomingCallOffer = offerDict
+             self.isIncomingCallPresented = true
+        }
+        .sheet(isPresented: $isIncomingCallPresented) {
+            if let offer = incomingCallOffer,
+               let conversationId = offer["conversationId"] as? String {
+               CallView(conversationId: conversationId, incomingOffer: offer)
+            } else {
+               Text("Incoming call error")
+            }
+        }
+        .onAppear {
+             if session.accessToken != nil {
+                 connectSocket()
+             }
+        }
+    }
+    
+    private func connectSocket() {
+        guard let token = session.accessToken else { return }
+        SocketIOManager.shared.connect(token: token)
+    }
+    
+    private func disconnectSocket() {
+        SocketIOManager.shared.disconnect()
     }
 }

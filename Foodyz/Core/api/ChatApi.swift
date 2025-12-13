@@ -26,7 +26,9 @@ final class ChatAPI {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
-    private let baseURL = URL(string: "http://localhost:3000/chat/")
+    private let primaryBaseURL = URL(string: "\(APIConfig.baseURLString)/chat/")
+    private let fallbackBaseURL = URL(string: "http://localhost:3000/chat/")
+    private var baseURL: URL? { primaryBaseURL }
 
     private init(session: URLSession = .shared) {
         self.session = session
@@ -40,11 +42,23 @@ final class ChatAPI {
         return try await perform(request, decode: [ConversationDTO].self)
     }
 
+    func getConversation(id: String) async throws -> ConversationDTO {
+        let request = try await authorizedRequest(path: "conversations/\(id)")
+        return try await perform(request, decode: ConversationDTO.self)
+    }
+
     func createConversation(_ requestBody: CreateConversationRequest) async throws -> ConversationDTO {
         let body = try encoder.encode(requestBody)
         let request = try await authorizedRequest(path: "conversations", method: "POST", body: body)
         return try await perform(request, decode: ConversationDTO.self)
     }
+
+    func deleteAllConversations() async throws {
+        let request = try await authorizedRequest(path: "conversations", method: "DELETE")
+        let _: EmptyResponse? = try? await perform(request, decode: EmptyResponse.self)
+    }
+
+    struct EmptyResponse: Decodable {}
 
     func fetchPeers() async throws -> [ChatPeer] {
         let request = try await authorizedRequest(path: "peers")

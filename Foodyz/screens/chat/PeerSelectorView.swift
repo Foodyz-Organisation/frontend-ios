@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PeerSelectorView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var session: SessionManager
     @State private var peers: [ChatPeer]
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -89,7 +90,9 @@ struct PeerSelectorView: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            peers = try await ChatAPI.shared.fetchPeers()
+            let response = try await ChatAPI.shared.fetchPeers()
+            let currentUserId = session.userId
+            peers = response.filter { $0.id != currentUserId }
         } catch {
             errorMessage = error.localizedDescription
         }
