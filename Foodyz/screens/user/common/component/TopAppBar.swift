@@ -13,6 +13,7 @@ struct TopAppBarColors {
 // MARK: - 1. TopAppBarView (Header) - Professional Redesign
 struct TopAppBarView: View {
     @Binding var showNotifications: Bool
+    @Binding var selectedTab: String
     var openDrawer: () -> Void
     var onSearchClick: () -> Void
     var onProfileClick: () -> Void
@@ -229,6 +230,7 @@ struct NavBarItem: View {
     }
 }
 
+
 // MARK: - Preview
 struct TopAppBarView_Previews: PreviewProvider {
     static var previews: some View {
@@ -241,6 +243,7 @@ struct TopAppBarView_Previews: PreviewProvider {
             VStack {
                 TopAppBarView(
                     showNotifications: $showingNotifications,
+                    selectedTab: .constant("home"),
                     openDrawer: { },
                     onSearchClick: { },
                     onProfileClick: { },

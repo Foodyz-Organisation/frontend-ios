@@ -1,5 +1,24 @@
 import SwiftUI
 
+// MARK: - Filter Chip Component
+struct FilterChipComponent: View {
+    let text: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 14, weight: isSelected ? .bold : .medium))
+                .foregroundColor(isSelected ? .white : Color(hex: "#1F2937"))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .background(isSelected ? Color(hex: "#111827") : Color(hex: "#F3F4F6"))
+                .cornerRadius(25)
+        }
+    }
+}
+
 // MARK: - Home Colors
 struct HomeColors {
     static let background = Color(red: 0.98, green: 0.98, blue: 0.98) // Light gray background
@@ -25,7 +44,6 @@ extension Color {
 
 // MARK: - HomeUserScreen
 struct HomeUserScreen: View {
-    @State private var showingDrawer = false
     @State private var showingSearch = false
     @State private var showingNotifications = false
     @State private var selectedFilter: String = "All"
@@ -40,6 +58,16 @@ struct HomeUserScreen: View {
     var onNavigateToDeals: (() -> Void)? = nil // NEW: Navigate to deals list
     var onOpenMessages: (() -> Void)? = nil
     var onOpenProfile: (() -> Void)? = nil
+    @StateObject private var postsViewModel = PostsViewModel()
+    @State private var selectedFoodType: String? = nil
+    @State private var showingDrawer = false
+    @State private var selectedTab: String = "home"
+    @State private var showCreatePost = false
+    
+    var onNavigateDrawer: ((String) -> Void)? = nil
+    var onNavigateToProfile: (() -> Void)? = nil
+    var onNavigateToPost: ((String) -> Void)? = nil
+
 
     var body: some View {
         ZStack {
@@ -141,13 +169,49 @@ struct HomeUserScreen: View {
                             onNavigateDrawer?(route)
                             withAnimation { showingDrawer = false }
                         },
-                        currentRoute: currentRoute
+                        currentRoute: selectedTab
                     )
                     Spacer()
                 }
                 .transition(.move(edge: .leading))
                 .animation(.easeInOut, value: showingDrawer)
             }
+            
+            // Floating Action Button (FAB) - Only show on Home
+            if selectedTab == "home" {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            showCreatePost = true
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color(hex: "#F59E0B"), Color(hex: "#EF4444")],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 60, height: 60)
+                                    .shadow(color: Color(hex: "#F59E0B").opacity(0.4), radius: 8, x: 0, y: 4)
+                                
+                                Image(systemName: "plus")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.trailing, 24)
+                        .padding(.bottom, 80) // Move up above nav bar
+                    }
+                }
+            }
+        }
+        .navigationBarBackButtonHidden(true) // Hide system back button
+        .sheet(isPresented: $showCreatePost) {
+            MediaSelectionView(isPresented: $showCreatePost)
         }
         .sheet(isPresented: $showingSearch) {
             SearchScreen { professionalId in

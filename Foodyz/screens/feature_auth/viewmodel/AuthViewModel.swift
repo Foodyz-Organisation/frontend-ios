@@ -84,8 +84,14 @@ class AuthViewModel: ObservableObject {
             TokenManager.shared.debugPrintAll()
             
             isLoggedIn = true
-            userRole = AppUserRole(rawValue: response.role) ?? .user
-            session.update(with: response)
+            userRole = response.role
+            
+            // Save user session for use across the app
+            UserSession.shared.saveSession(
+                userId: response.id,
+                email: response.email,
+                role: response.role
+            )
 
             // Trigger navigation based on role
             if let resolvedRole = userRole {
