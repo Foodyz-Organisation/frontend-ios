@@ -261,13 +261,40 @@ extension ReclamationListViewController: UITableViewDelegate {
         
         // Build full photo URLs from backend paths
         let baseURL = AppAPIConstants.baseURL
-        let photoUrls = (reclamationDTO.photos ?? []).map { photoPath in
-            if photoPath.hasPrefix("http") {
+        let photoUrls = (reclamationDTO.photos ?? []).compactMap { photoPath in
+            // Si c'est déjà une URL complète, la retourner telle quelle
+            if photoPath.hasPrefix("http://") || photoPath.hasPrefix("https://") {
+                print("📸 Photo URL complète: \(photoPath)")
                 return photoPath
-            } else {
-                let cleanPath = photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath
-                return "\(baseURL)/\(cleanPath)"
             }
+            
+            // Si c'est du base64, le retourner tel quel (sera géré par PhotoItemView)
+            if photoPath.hasPrefix("data:image") || (photoPath.count > 100 && !photoPath.contains("/")) {
+                print("📸 Photo base64 détectée")
+                return photoPath
+            }
+            
+            // Si c'est un chemin relatif, construire l'URL complète
+            // Le backend stocke généralement les photos dans un dossier comme /uploads/reclamations/
+            // ou utilise un endpoint comme /reclamation/photos/:filename
+            var cleanPath = photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath
+            
+            // Si le chemin ne commence pas par un préfixe connu, essayer différents formats
+            if !cleanPath.contains("uploads") && !cleanPath.contains("reclamations") && !cleanPath.contains("photos") {
+                // Essayer avec /uploads/reclamations/
+                let fullURL1 = "\(baseURL)/uploads/reclamations/\(cleanPath)"
+                print("📸 Photo chemin relatif (format 1): \(photoPath) -> URL: \(fullURL1)")
+                return fullURL1
+            }
+            
+            let fullURL = "\(baseURL)/\(cleanPath)"
+            print("📸 Photo chemin relatif: \(photoPath) -> URL complète: \(fullURL)")
+            return fullURL
+        }
+        
+        print("📸 Total de photos construites: \(photoUrls.count)")
+        for (index, url) in photoUrls.enumerated() {
+            print("📸 Photo \(index + 1): \(url)")
         }
         
         // Navigation vers les détails (SwiftUI)

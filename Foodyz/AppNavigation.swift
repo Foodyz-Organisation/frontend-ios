@@ -53,12 +53,16 @@ enum Screen: Hashable {
     case chatList(role: AppUserRole)
     case chatThread(conversationId: String, title: String?)
     case userProfile
+    case loyaltyPoints
     case reclamationList
+    case eventList
+    case userEventList
     
     // Deals
     case dealsList
     case dealDetail(dealId: String)
     case proDealsManagement
+    case proDealDetail(dealId: String)
     case addDeal
     case editDeal(dealId: String)
     
@@ -78,6 +82,7 @@ struct AppNavigation: View {
     @StateObject private var sessionManager = SessionManager.shared
     @StateObject private var menuVM = MenuViewModel()
     @StateObject private var dealsVM = DealsViewModel()
+    @StateObject private var eventManager = EventManager()
     
     @StateObject private var cartViewModel: CartViewModel
     
@@ -159,8 +164,12 @@ struct AppNavigation: View {
                                  path.append(Screen.chatList(role: AppUserRole.user))
                              case "profile":
                                  path.append(Screen.userProfile)
+                             case "loyalty_points":
+                                 path.append(Screen.loyaltyPoints)
                              case "reclamations":
                                  path.append(Screen.reclamationList)
+                             case "events":
+                                 path.append(Screen.userEventList)
                              case "login":
                                  path.removeLast(path.count)
                                  path.append(Screen.login)
@@ -173,6 +182,9 @@ struct AppNavigation: View {
                         },
                         onNavigateToOrders: {
                             path.append(Screen.orderHistory)
+                        },
+                        onNavigateToDeals: {
+                            path.append(Screen.dealsList)
                         },
                         onOpenMessages: {
                             path.append(Screen.chatList(role: AppUserRole.user))
@@ -257,8 +269,22 @@ struct AppNavigation: View {
                 case .userProfile:
                     UserProfileView()
                 
+                case .loyaltyPoints:
+                    LoyaltyPointsScreen(loyaltyData: nil) {
+                        print("🔙 Retour depuis LoyaltyPointsScreen")
+                        path.removeLast()
+                    }
+                
                 case .reclamationList:
                     ReclamationListView()
+                
+                case .userEventList:
+                    UserEventListView()
+                        .environmentObject(eventManager)
+                
+                case .eventList:
+                    EventListView()
+                        .environmentObject(eventManager)
                 
                 case .createReclamation(let orderId):
                     ReclamationView(
@@ -328,22 +354,25 @@ struct AppNavigation: View {
                         },
                         onEditDealClick: { dealId in
                             path.append(Screen.editDeal(dealId: dealId))
+                        },
+                        onDealClick: { dealId in
+                            path.append(Screen.proDealDetail(dealId: dealId))
                         }
                     )
                     .onAppear {
                         dealsVM.loadDeals()
                     }
                     
+                case .proDealDetail(let dealId):
+                    ProDealDetailView(dealId: dealId, viewModel: dealsVM)
+                    
                 case .addDeal:
-                    AddEditDealView(viewModel: dealsVM)
+                    AddEditDealView(viewModel: dealsVM, dealId: nil)
                         .navigationTitle("Nouveau Deal")
                     
                 case .editDeal(let dealId):
-                    AddEditDealView(viewModel: dealsVM)
+                    AddEditDealView(viewModel: dealsVM, dealId: dealId)
                         .navigationTitle("Modifier Deal")
-                        .onAppear {
-                            dealsVM.loadDealById(dealId)
-                        }
                 }
             }
         }
@@ -356,26 +385,43 @@ struct DealsListUserView: View {
     @ObservedObject var viewModel: DealsViewModel
     
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 16) {
-                switch viewModel.dealsState {
-                case .loading:
-                    ProgressView()
-                case .success(let deals):
-                    ForEach(deals) { deal in
-                        NavigationLink(value: Screen.dealDetail(dealId: deal._id)) {
-                            DealUserCardView(deal: deal)
+        ZStack {
+            BrandColors.Cream100.ignoresSafeArea()
+            
+            ScrollView {
+                LazyVStack(spacing: 16) {
+                    switch viewModel.dealsState {
+                    case .loading:
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .padding(50)
+                            
+                    case .success(let deals):
+                        if deals.isEmpty {
+                            EmptyDealsUserStateView()
+                        } else {
+                            ForEach(deals) { deal in
+                                NavigationLink(value: Screen.dealDetail(dealId: deal._id)) {
+                                    DealUserCardView(deal: deal)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        
+                    case .error(let message):
+                        ErrorDealsUserStateView(message: message) {
+                            viewModel.loadDeals()
+                        }
                     }
-                case .error(let message):
-                    Text(message)
-                        .foregroundColor(BrandColors.Red)
                 }
+                .padding(16)
             }
-            .padding()
         }
-        .navigationTitle("Deals")
+        .navigationTitle("Daily Deals")
+        .navigationBarTitleDisplayMode(.large)
+        .refreshable {
+            viewModel.loadDeals()
+        }
     }
 }
 
@@ -383,34 +429,132 @@ struct DealUserCardView: View {
     let deal: Deal
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Image
             if let url = URL(string: deal.image) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .scaledToFill()
                 } placeholder: {
-                    Color.gray
+                    placeholderImage
                 }
                 .frame(height: 180)
+                .frame(maxWidth: .infinity)
                 .clipped()
+            } else {
+                placeholderImage
             }
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(deal.restaurantName)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(BrandColors.TextPrimary)
+            // Contenu
+            VStack(alignment: .leading, spacing: 12) {
+                // Statut
+                DealStatusBadge(isActive: deal.isActive)
                 
+                // Nom du restaurant
+                Text(deal.restaurantName)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(BrandColors.TextPrimary)
+                    .lineLimit(2)
+                
+                // Description
                 Text(deal.description)
                     .font(.system(size: 14))
                     .foregroundColor(BrandColors.TextSecondary)
                     .lineLimit(2)
+                
+                Divider()
+                    .background(BrandColors.Cream200)
+                
+                // Informations
+                DealInfoRow(icon: "tag", text: deal.category)
+                DealInfoRow(icon: "calendar", text: "Expire: \(formatDate(deal.endDate))")
             }
-            .padding()
+            .padding(16)
         }
         .background(Color.white)
-        .cornerRadius(12)
+        .cornerRadius(16)
         .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+    
+    private var placeholderImage: some View {
+        LinearGradient(
+            colors: [BrandColors.Yellow, BrandColors.YellowPressed],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: 180)
+        .overlay(
+            Image(systemName: "tag.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.white.opacity(0.7))
+        )
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        guard let date = isoFormatter.date(from: dateString) else {
+            return dateString
+        }
+        
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "dd MMM yyyy 'à' HH:mm"
+        displayFormatter.locale = Locale(identifier: "fr_FR")
+        
+        return displayFormatter.string(from: date)
+    }
+}
+
+struct EmptyDealsUserStateView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "tag")
+                .font(.system(size: 80))
+                .foregroundColor(BrandColors.TextSecondary.opacity(0.3))
+            
+            Text("Aucun deal disponible")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(BrandColors.TextPrimary)
+            
+            Text("Revenez plus tard pour découvrir nos deals")
+                .font(.system(size: 14))
+                .foregroundColor(BrandColors.TextSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(32)
+    }
+}
+
+struct ErrorDealsUserStateView: View {
+    let message: String
+    let onRetry: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 64))
+                .foregroundColor(BrandColors.Red.opacity(0.7))
+            
+            Text(message)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(BrandColors.TextPrimary)
+                .multilineTextAlignment(.center)
+            
+            Button(action: onRetry) {
+                HStack {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Réessayer")
+                }
+                .foregroundColor(BrandColors.TextPrimary)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(BrandColors.Yellow)
+                .cornerRadius(24)
+            }
+        }
+        .padding()
     }
 }
 
@@ -419,84 +563,116 @@ struct DealDetailUserView: View {
     @ObservedObject var viewModel: DealsViewModel
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch viewModel.dealDetailState {
-                case .loading:
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .padding()
-                    
-                case .success(let deal):
-                    if let url = URL(string: deal.image) {
-                        AsyncImage(url: url) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Color.gray
-                        }
-                        .frame(height: 300)
-                        .clipped()
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(deal.restaurantName)
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(BrandColors.TextPrimary)
+        ZStack {
+            BrandColors.Cream100.ignoresSafeArea()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    switch viewModel.dealDetailState {
+                    case .loading:
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .padding(50)
                         
-                        Text(deal.description)
-                            .font(.system(size: 16))
-                            .foregroundColor(BrandColors.TextSecondary)
+                    case .success(let deal):
+                        dealDetailContent(deal: deal)
                         
-                        Divider()
-                        
-                        HStack {
-                            Image(systemName: "tag.fill")
-                                .foregroundColor(BrandColors.Yellow)
-                            Text(deal.category)
-                                .font(.system(size: 14))
-                        }
-                        
-                        HStack {
-                            Image(systemName: "calendar")
-                                .foregroundColor(BrandColors.TextSecondary)
-                            Text("Expire: \(deal.endDate)")
-                                .font(.system(size: 14))
-                        }
-                        
-                        if deal.isActive {
-                            Text("✓ Deal actif")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(BrandColors.Green)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(BrandColors.Green.opacity(0.15))
-                                .cornerRadius(8)
-                        }
-                    }
-                    .padding()
-                    
-                case .error(let message):
-                    VStack(spacing: 16) {
-                        Text("Erreur")
-                            .font(.headline)
-                            .foregroundColor(BrandColors.Red)
-                        Text(message)
-                            .font(.body)
-                            .foregroundColor(BrandColors.TextSecondary)
-                        Button("Réessayer") {
+                    case .error(let message):
+                        ErrorDealsUserStateView(message: message) {
                             viewModel.loadDealById(dealId)
                         }
-                        .buttonStyle(.borderedProminent)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
                 }
+                .padding()
             }
         }
-        .navigationTitle("Détail du Deal")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Détails du Deal")
+        .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            viewModel.loadDealById(dealId)
+        }
+    }
+    
+    @ViewBuilder
+    private func dealDetailContent(deal: Deal) -> some View {
+        // Image
+        if let url = URL(string: deal.image) {
+            AsyncImage(url: url) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+            } placeholder: {
+                placeholderImage
+            }
+            .frame(height: 300)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .cornerRadius(16)
+        } else {
+            placeholderImage
+                .frame(height: 300)
+                .frame(maxWidth: .infinity)
+                .cornerRadius(16)
+        }
+        
+        // Contenu
+        VStack(alignment: .leading, spacing: 16) {
+            // Statut
+            DealStatusBadge(isActive: deal.isActive)
+            
+            // Nom du restaurant
+            Text(deal.restaurantName)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(BrandColors.TextPrimary)
+            
+            // Description
+            Text(deal.description)
+                .font(.system(size: 16))
+                .foregroundColor(BrandColors.TextSecondary)
+                .lineSpacing(4)
+            
+            Divider()
+                .background(BrandColors.Cream200)
+            
+            // Informations détaillées
+            DetailInfoCard(icon: "tag.fill", title: "Catégorie", value: deal.category)
+            DetailInfoCard(icon: "calendar", title: "Date de début", value: formatDate(deal.startDate))
+            DetailInfoCard(icon: "calendar", title: "Date de fin", value: formatDate(deal.endDate))
+            DetailInfoCard(icon: "info.circle", title: "Statut", value: deal.isActive ? "Actif" : "Inactif")
+        }
+        .padding(20)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+    }
+    
+    private var placeholderImage: some View {
+        LinearGradient(
+            colors: [BrandColors.Yellow, BrandColors.YellowPressed],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .overlay(
+            Image(systemName: "tag.fill")
+                .font(.system(size: 60))
+                .foregroundColor(.white.opacity(0.7))
+        )
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        guard let date = isoFormatter.date(from: dateString) else {
+            return dateString
+        }
+        
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "dd MMM yyyy 'à' HH:mm"
+        displayFormatter.locale = Locale(identifier: "fr_FR")
+        
+        return displayFormatter.string(from: date)
     }
 }
 

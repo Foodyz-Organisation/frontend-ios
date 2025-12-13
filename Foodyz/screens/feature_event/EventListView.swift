@@ -95,7 +95,22 @@ struct EventListView: View {
         .sheet(isPresented: $showingCreateEvent) {
             NavigationView {
                 CreateEventView { newEvent in
-                    eventManager.addEvent(newEvent)
+                    eventManager.addEvent(newEvent) { result in
+                        switch result {
+                        case .success(let createdEvent):
+                            print("✅ Événement créé, navigation vers les détails...")
+                            // Fermer le sheet de création
+                            showingCreateEvent = false
+                            // Naviguer vers les détails de l'événement créé
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                selectedEvent = createdEvent
+                                showingEventDetail = true
+                            }
+                        case .failure(let error):
+                            print("❌ Erreur lors de la création: \(error.localizedDescription)")
+                            // Le sheet reste ouvert pour permettre une nouvelle tentative
+                        }
+                    }
                 }
             }
         }

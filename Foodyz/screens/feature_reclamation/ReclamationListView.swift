@@ -148,14 +148,25 @@ class ReclamationListViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        ReclamationAPI.shared.getMyReclamations { [weak self] result in
+        // Détecter le rôle de l'utilisateur connecté
+        let userRole = TokenManager.shared.getUserRole()
+        let isProfessional = userRole?.lowercased() == "professional"
+        
+        print("🔍 Chargement des réclamations - Rôle: \(userRole ?? "unknown"), Professionnel: \(isProfessional)")
+        
+        // Utiliser la bonne méthode API selon le rôle
+        let apiCall: (@escaping (Result<[ReclamationResponseDTO], Error>) -> Void) -> Void = isProfessional
+            ? ReclamationAPI.shared.getMyRestaurantReclamations
+            : ReclamationAPI.shared.getMyReclamations
+        
+        apiCall { [weak self] result in
             Task { @MainActor in
                 guard let self = self else { return }
                 self.isLoading = false
                 
                 switch result {
                 case .success(let reclamationDTOs):
-                    print("✅ \(reclamationDTOs.count) réclamation(s) chargée(s)")
+                    print("✅ \(reclamationDTOs.count) réclamation(s) chargée(s) pour \(isProfessional ? "le restaurant" : "l'utilisateur")")
                     // Convert ReclamationResponseDTO to Reclamation
                     self.reclamations = reclamationDTOs.map { dto in
                         // Map status from backend string to ReclamationStatus
@@ -179,16 +190,38 @@ class ReclamationListViewModel: ObservableObject {
                         
                         // Build full photo URLs from backend paths
                         let baseURL = AppAPIConstants.baseURL
-                        let photoUrls = (dto.photos ?? []).map { photoPath in
-                            // If path already starts with http, use it as is, otherwise prepend base URL
-                            if photoPath.hasPrefix("http") {
+                        print("📸 Photos reçues du backend: \(dto.photos ?? [])")
+                        let photoUrls = (dto.photos ?? []).compactMap { photoPath in
+                            // Si c'est déjà une URL complète, la retourner telle quelle
+                            if photoPath.hasPrefix("http://") || photoPath.hasPrefix("https://") {
+                                print("📸 Photo URL complète: \(photoPath)")
                                 return photoPath
-                            } else {
-                                // Remove leading slash if present and construct full URL
-                                let cleanPath = photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath
-                                return "\(baseURL)/\(cleanPath)"
                             }
+                            
+                            // Si c'est du base64, le retourner tel quel (sera géré par PhotoItemView)
+                            if photoPath.hasPrefix("data:image") || (photoPath.count > 100 && !photoPath.contains("/")) {
+                                print("📸 Photo base64 détectée")
+                                return photoPath
+                            }
+                            
+                            // Si c'est un chemin relatif, construire l'URL complète
+                            // Backend peut retourner: "/reclamation/image/filename.jpg" ou "reclamation/image/filename.jpg"
+                            var cleanPath = photoPath.hasPrefix("/") ? photoPath : "/\(photoPath)"
+                            
+                            // Si le chemin ne commence pas par un préfixe connu, essayer différents formats
+                            if !cleanPath.contains("reclamation") && !cleanPath.contains("uploads") && !cleanPath.contains("photos") {
+                                // Essayer avec /uploads/reclamations/
+                                let fullURL1 = "\(baseURL)/uploads/reclamations/\(photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath)"
+                                print("📸 Photo chemin relatif (format 1): \(photoPath) -> URL: \(fullURL1)")
+                                return fullURL1
+                            }
+                            
+                            let fullURL = "\(baseURL)\(cleanPath)"
+                            print("📸 Photo chemin relatif: \(photoPath) -> URL complète: \(fullURL)")
+                            return fullURL
                         }
+                        print("📸 Total URLs de photos: \(photoUrls.count)")
+                        print("📸 URLs finales: \(photoUrls)")
                         
                         return Reclamation(
                             id: dto._id,

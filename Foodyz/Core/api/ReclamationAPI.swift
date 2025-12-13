@@ -70,6 +70,37 @@ struct ReclamationResponseDTO: Codable {
         case createdAt
         case updatedAt
     }
+    
+    // Custom decoding to handle missing or null photos
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        _id = try container.decode(String.self, forKey: ._id)
+        nomClient = try container.decode(String.self, forKey: .nomClient)
+        emailClient = try container.decode(String.self, forKey: .emailClient)
+        description = try container.decode(String.self, forKey: .description)
+        commandeConcernee = try container.decode(String.self, forKey: .commandeConcernee)
+        complaintType = try container.decode(String.self, forKey: .complaintType)
+        statut = try container.decode(String.self, forKey: .statut)
+        
+        // Try to decode photos, but handle if it's missing, null, or empty array
+        if let photosArray = try? container.decode([String].self, forKey: .photos) {
+            photos = photosArray.isEmpty ? nil : photosArray
+        } else {
+            photos = nil
+        }
+        
+        userId = try container.decode(String.self, forKey: .userId)
+        restaurantEmail = try? container.decode(String.self, forKey: .restaurantEmail)
+        restaurantId = try? container.decode(String.self, forKey: .restaurantId)
+        responseMessage = try? container.decode(String.self, forKey: .responseMessage)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        updatedAt = try container.decode(String.self, forKey: .updatedAt)
+        
+        // Debug: Print photos after decoding
+        print("🔍 ReclamationResponseDTO décodé - ID: \(_id)")
+        print("🔍 Photos décodées: \(photos ?? [])")
+        print("🔍 Nombre de photos: \(photos?.count ?? 0)")
+    }
 }
 
 // MARK: - API Client
@@ -343,16 +374,25 @@ class ReclamationAPI {
                     return
                 }
                 
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("📥 GET Réponse brute:")
-                    print(responseString)
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📥 GET Réponse brute:")
+                print(responseString)
+                print("📥 Taille de la réponse: \(data.count) bytes")
+            }
+            
+            do {
+                let decoder = JSONDecoder()
+                let reclamations = try decoder.decode([ReclamationResponseDTO].self, from: data)
+                print("✅ \(reclamations.count) réclamation(s) récupérée(s) pour cet utilisateur")
+                
+                // Debug: Afficher les photos de chaque réclamation
+                for (index, reclamation) in reclamations.enumerated() {
+                    print("📸 Réclamation \(index + 1) - ID: \(reclamation._id)")
+                    print("📸 Photos: \(reclamation.photos ?? [])")
+                    print("📸 Nombre de photos: \(reclamation.photos?.count ?? 0)")
                 }
                 
-                do {
-                    let decoder = JSONDecoder()
-                    let reclamations = try decoder.decode([ReclamationResponseDTO].self, from: data)
-                    print("✅ \(reclamations.count) réclamation(s) récupérée(s) pour cet utilisateur")
-                    completion(.success(reclamations))
+                completion(.success(reclamations))
                 } catch {
                     print("❌ Erreur de décodage GET: \(error.localizedDescription)")
                     if let jsonString = String(data: data, encoding: .utf8) {
@@ -364,6 +404,103 @@ class ReclamationAPI {
             
             task.resume()
         }
+    
+    // MARK: - ✅ MÉTHODE - GET - Récupérer les réclamations de MON restaurant (pour professionnel)
+    func getMyRestaurantReclamations(completion: @escaping (Result<[ReclamationResponseDTO], Error>) -> Void) {
+        // ✅ Utiliser l'endpoint pour récupérer les réclamations du restaurant connecté
+        let urlString = "\(baseURL)/restaurant/my-reclamations"
+        
+        print("🔍 Récupération des réclamations du restaurant professionnel...")
+        print("📍 URL: \(urlString)")
+        
+        guard let url = URL(string: urlString) else {
+            print("❌ URL invalide: \(urlString)")
+            completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
+            return
+        }
+        
+        guard let accessToken = TokenManager.shared.getAccessToken() else {
+            print("❌ Pas de token d'authentification")
+            completion(.failure(NSError(domain: "Not authenticated", code: 401, userInfo: [
+                NSLocalizedDescriptionKey: "Vous devez être connecté"
+            ])))
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        
+        print("🔑 Token utilisé (30 premiers caractères): \(String(accessToken.prefix(30)))...")
+        
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("❌ Erreur réseau GET: \(error.localizedDescription)")
+                completion(.failure(error))
+                return
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📥 GET Status Code: \(httpResponse.statusCode)")
+                
+                if httpResponse.statusCode == 401 {
+                    print("🚫 Token invalide ou expiré")
+                    DispatchQueue.main.async {
+                        TokenManager.shared.clearAllData()
+                        NotificationCenter.default.post(name: NSNotification.Name("UserLoggedOut"), object: nil)
+                    }
+                    completion(.failure(NSError(domain: "Unauthorized", code: 401, userInfo: [
+                        NSLocalizedDescriptionKey: "Session expirée. Veuillez vous reconnecter."
+                    ])))
+                    return
+                }
+                
+                guard (200...299).contains(httpResponse.statusCode) else {
+                    print("❌ Erreur HTTP: \(httpResponse.statusCode)")
+                    completion(.failure(NSError(domain: "HTTP Error", code: httpResponse.statusCode, userInfo: nil)))
+                    return
+                }
+            }
+            
+            guard let data = data else {
+                print("❌ Aucune donnée reçue")
+                completion(.failure(NSError(domain: "No data", code: -1, userInfo: nil)))
+                return
+            }
+            
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📥 GET Réponse brute:")
+                print(responseString)
+                print("📥 Taille de la réponse: \(data.count) bytes")
+            }
+            
+            do {
+                let decoder = JSONDecoder()
+                let reclamations = try decoder.decode([ReclamationResponseDTO].self, from: data)
+                print("✅ \(reclamations.count) réclamation(s) récupérée(s) pour ce restaurant")
+                
+                // Debug: Afficher les photos de chaque réclamation
+                for (index, reclamation) in reclamations.enumerated() {
+                    print("📸 Réclamation \(index + 1) - ID: \(reclamation._id)")
+                    print("📸 Photos: \(reclamation.photos ?? [])")
+                    print("📸 Nombre de photos: \(reclamation.photos?.count ?? 0)")
+                }
+                
+                completion(.success(reclamations))
+            } catch {
+                print("❌ Erreur de décodage GET: \(error.localizedDescription)")
+                if let jsonString = String(data: data, encoding: .utf8) {
+                    print("📥 JSON reçu: \(jsonString.prefix(500))")
+                }
+                completion(.failure(error))
+            }
+        }
+        
+        task.resume()
+    }
         
     // MARK: - GET - Récupérer toutes les réclamations (avec authentification)
     func getReclamations(completion: @escaping (Result<[ReclamationDTO], Error>) -> Void) {

@@ -37,6 +37,7 @@ struct HomeUserScreen: View {
     var onNavigateDrawer: ((String) -> Void)? = nil
     var onNavigateToProfessional: ((String) -> Void)? = nil
     var onNavigateToOrders: (() -> Void)? = nil // NEW: Navigate to order history
+    var onNavigateToDeals: (() -> Void)? = nil // NEW: Navigate to deals list
     var onOpenMessages: (() -> Void)? = nil
     var onOpenProfile: (() -> Void)? = nil
 
@@ -85,7 +86,7 @@ struct HomeUserScreen: View {
                                 iconColor: Color(red: 1.0, green: 0.65, blue: 0.0) // Orange
                             )
                             .onTapGesture {
-                                // Navigate to deals
+                                onNavigateToDeals?()
                             }
                         }
                         .padding(.horizontal, 20)

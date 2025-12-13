@@ -47,8 +47,16 @@ struct ProfessionalDrawer: View {
                         navigateTo("menu")
                     }
                     
+                    DrawerMenuItem(icon: "tag.fill", title: "Deals Management") {
+                        navigateTo("deals_management")
+                    }
+                    
                     DrawerMenuItem(icon: "chart.bar.fill", title: "Analytics") {
                         navigateTo("analytics")
+                    }
+                    
+                    DrawerMenuItem(icon: "calendar", title: "Event Management") {
+                        navigateTo("events")
                     }
                     
                     DrawerMenuItem(icon: "bell.fill", title: "Notifications") {

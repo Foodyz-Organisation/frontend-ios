@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Reclamation Detail View
 struct ReclamationDetailView: View {
@@ -9,7 +10,19 @@ struct ReclamationDetailView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "dd MMMM yyyy 'à' HH:mm"
         formatter.locale = Locale(identifier: "fr_FR")
+        // Échapper le caractère 'à' correctement
         return formatter
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd MMMM yyyy"
+        formatter.locale = Locale(identifier: "fr_FR")
+        let dateStr = formatter.string(from: date)
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        let timeStr = timeFormatter.string(from: date)
+        return "\(dateStr) à \(timeStr)"
     }
     
     var body: some View {
@@ -18,7 +31,7 @@ struct ReclamationDetailView: View {
                 // Status Card
                 StatusCard(
                     status: reclamation.status,
-                    date: dateFormatter.string(from: reclamation.date),
+                    date: formatDate(reclamation.date),
                     orderNumber: reclamation.orderNumber
                 )
                 
@@ -34,6 +47,20 @@ struct ReclamationDetailView: View {
                 if !reclamation.photoUrls.isEmpty {
                     SectionLabel(text: "Photos (\(reclamation.photoUrls.count))")
                     PhotosGrid(photoUrls: reclamation.photoUrls)
+                } else {
+                    // Debug: Afficher si aucune photo n'est disponible
+                    SectionLabel(text: "Photos")
+                    Text("Aucune photo disponible")
+                        .foregroundColor(ReclamationBrandColors.textSecondary)
+                        .font(.system(size: 14))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .onAppear {
+                            print("⚠️ Aucune photo dans la réclamation")
+                            print("⚠️ photoUrls vide: \(reclamation.photoUrls)")
+                        }
                 }
                 
                 // Response
@@ -155,34 +182,157 @@ struct PhotosGrid: View {
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             ForEach(photoUrls, id: \.self) { photoUrl in
-                AsyncImage(url: URL(string: photoUrl)) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .frame(height: 180)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(height: 180)
-                            .clipped()
-                            .cornerRadius(16)
-                            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
-                    case .failure:
-                        Image(systemName: "photo")
-                            .font(.system(size: 40))
-                            .foregroundColor(.gray)
-                            .frame(height: 180)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(16)
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
+                PhotoItemView(photoUrl: photoUrl)
             }
         }
         .frame(maxHeight: 400)
+        .onAppear {
+            print("📸 PhotosGrid affiché avec \(photoUrls.count) URL(s)")
+            for (index, url) in photoUrls.enumerated() {
+                print("📸 Photo \(index + 1): \(url)")
+            }
+        }
+    }
+}
+
+// MARK: - Photo Item View
+struct PhotoItemView: View {
+    let photoUrl: String
+    @State private var imageData: Data?
+    @State private var isLoading = true
+    @State private var loadError: Error?
+    
+    var body: some View {
+        Group {
+            if let data = imageData, let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 180)
+                    .clipped()
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+                    .onAppear {
+                        print("✅ Photo affichée avec succès: \(photoUrl)")
+                    }
+            } else if isLoading {
+                VStack {
+                    ProgressView()
+                    Text("Chargement...")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                .frame(height: 180)
+                .frame(maxWidth: .infinity)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(16)
+            } else {
+                VStack {
+                    Image(systemName: "photo")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text("Erreur de chargement")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    Text(photoUrl)
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(height: 180)
+                .frame(maxWidth: .infinity)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(16)
+            }
+        }
+        .onAppear {
+            loadImage()
+        }
+    }
+    
+    private func loadImage() {
+        // Vérifier si c'est une URL valide
+        guard let url = URL(string: photoUrl) else {
+            // Si ce n'est pas une URL valide, vérifier si c'est du base64
+            if photoUrl.hasPrefix("data:image") || photoUrl.count > 100 {
+                // Probablement du base64
+                loadBase64Image(photoUrl)
+            } else {
+                print("❌ URL invalide: \(photoUrl)")
+                isLoading = false
+                loadError = NSError(domain: "Invalid URL", code: -1, userInfo: nil)
+            }
+            return
+        }
+        
+        // Charger l'image depuis l'URL
+        print("📸 Chargement de l'image depuis: \(photoUrl)")
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        
+        // Ajouter le token d'authentification si disponible
+        if let accessToken = TokenManager.shared.getAccessToken() {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                if let error = error {
+                    print("❌ Erreur de chargement de la photo: \(photoUrl)")
+                    print("❌ Erreur: \(error.localizedDescription)")
+                    loadError = error
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("📥 Status Code pour \(photoUrl): \(httpResponse.statusCode)")
+                    
+                    if httpResponse.statusCode != 200 {
+                        print("❌ Status code non-200: \(httpResponse.statusCode)")
+                        loadError = NSError(domain: "HTTP Error", code: httpResponse.statusCode, userInfo: nil)
+                        return
+                    }
+                }
+                
+                guard let data = data else {
+                    print("❌ Aucune donnée reçue pour: \(photoUrl)")
+                    loadError = NSError(domain: "No data", code: -1, userInfo: nil)
+                    return
+                }
+                
+                print("✅ Données reçues: \(data.count) bytes pour \(photoUrl)")
+                imageData = data
+            }
+        }.resume()
+    }
+    
+    private func loadBase64Image(_ base64String: String) {
+        print("📸 Tentative de chargement d'image base64")
+        
+        var base64Data = base64String
+        
+        // Retirer le préfixe data:image/...;base64, si présent
+        if let range = base64Data.range(of: "base64,") {
+            base64Data = String(base64Data[range.upperBound...])
+        }
+        
+        guard let data = Data(base64Encoded: base64Data) else {
+            print("❌ Impossible de décoder le base64")
+            isLoading = false
+            loadError = NSError(domain: "Base64 decode error", code: -1, userInfo: nil)
+            return
+        }
+        
+        DispatchQueue.main.async {
+            isLoading = false
+            imageData = data
+            print("✅ Image base64 décodée avec succès: \(data.count) bytes")
+        }
     }
 }
 
@@ -247,3 +397,4 @@ struct ReclamationDetailView_Previews: PreviewProvider {
         .previewDisplayName("Sans réponse")
     }
 }
+

@@ -54,6 +54,23 @@ struct AppAPIConstants {
         static func delete(id: String) -> String { "\(base)/\(id)" }
     }
     
+    // Deals endpoints
+    struct Deals {
+        static let base = "\(baseURL)/deals"
+        static let list = "\(base)"
+        static let create = "\(base)"
+        static func get(id: String) -> String { "\(base)/\(id)" }
+        static func update(id: String) -> String { "\(base)/\(id)" }
+        static func delete(id: String) -> String { "\(base)/\(id)" }
+    }
+    
+    // Loyalty endpoints (basé sur LoyaltyService NestJS)
+    struct Loyalty {
+        static let base = "\(baseURL)/loyalty"
+        static let balance = "\(base)/balance" // getPointsBalance(userId)
+        static let rewards = "\(base)/rewards" // checkAvailableRewards(userId)
+    }
+    
     // Helper pour debug
     static func printConfiguration() {
         print("🌐 ============================================")

@@ -124,12 +124,8 @@ struct EventDTO: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
-        // Envoyer id ou _id si présent
-        if let idValue = id {
-            try container.encode(idValue, forKey: .id)
-        } else if let idValue = _id {
-            try container.encode(idValue, forKey: ._id)
-        }
+        // ⚠️ IMPORTANT: Ne PAS envoyer l'ID dans le body lors de la mise à jour
+        // L'ID est déjà dans l'URL, le backend ne l'attend pas dans le body
         
         // Envoyer nom
         try container.encode(nom, forKey: .nom)
@@ -217,23 +213,20 @@ struct EventResponse: Codable {
 class EventAPI {
     static let shared = EventAPI()
     
-    // ⚠️ IMPORTANT: Vérifiez votre backend Node.js
-    // Les routes possibles sont généralement:
-    // - /events (PLURIEL) ✅ Le plus courant
-    // - /api/events ✅
-    // - /event (SINGULIER) - moins courant
-    
-    // 🔧 CHANGEZ CETTE LIGNE selon votre backend:
-    private let baseURL = "http://192.168.1.10:3000/events"  // ← Notez le 's' à la fin!
-    // OU si vous avez un préfixe /api:
-    // private let baseURL = "http://localhost:3000/api/events"
+    // ✅ Utiliser AppAPIConstants pour la configuration centralisée
+    private var baseURL: String {
+        return AppAPIConstants.Events.base
+    }
     
     private init() {}
     
     // MARK: - GET - Récupérer tous les événements
     func getEvents(completion: @escaping (Result<[EventDTO], Error>) -> Void) {
-        guard let url = URL(string: baseURL) else {
-            print("❌ URL invalide: \(baseURL)")
+        let urlString = baseURL
+        print("🔍 GET Request vers: \(urlString)")
+        
+        guard let url = URL(string: urlString) else {
+            print("❌ URL invalide: \(urlString)")
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -241,7 +234,7 @@ class EventAPI {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 60  // Augmenté à 60 secondes
         request.cachePolicy = .reloadIgnoringLocalCacheData
         
         print("🔍 GET Request vers: \(url.absoluteString)")
@@ -324,9 +317,10 @@ class EventAPI {
     
     // MARK: - POST - Créer un événement
     func createEvent(_ event: EventDTO, completion: @escaping (Result<EventDTO, Error>) -> Void) {
-        print("📤 POST Request vers: \(baseURL)")
+        let urlString = baseURL
+        print("📤 POST Request vers: \(urlString)")
         
-        guard let url = URL(string: baseURL) else {
+        guard let url = URL(string: urlString) else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
         }
@@ -335,7 +329,7 @@ class EventAPI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 60  // Augmenté à 60 secondes
         
         do {
             let encoder = JSONEncoder()
@@ -387,12 +381,25 @@ class EventAPI {
             }
             
             // Essayer de décoder la réponse
-            if let createdEvent = try? JSONDecoder().decode(EventDTO.self, from: data) {
-                print("✅ Événement créé avec succès!")
+            do {
+                let decoder = JSONDecoder()
+                let createdEvent = try decoder.decode(EventDTO.self, from: data)
+                print("✅ Événement créé avec succès! ID: \(createdEvent.id ?? createdEvent._id ?? "N/A")")
                 completion(.success(createdEvent))
-            } else {
-                print("✅ Création réussie (réponse non décodée)")
-                completion(.success(event))
+            } catch {
+                print("⚠️ Réponse non décodée, utilisation de l'événement original")
+                print("   Erreur de décodage: \(error.localizedDescription)")
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("   Réponse brute: \(responseString.prefix(200))")
+                }
+                // Utiliser l'événement original mais essayer d'extraire l'ID de la réponse
+                var eventWithId = event
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let id = json["_id"] as? String ?? json["id"] as? String {
+                    eventWithId._id = id
+                    print("   ID extrait: \(id)")
+                }
+                completion(.success(eventWithId))
             }
         }
         
@@ -402,6 +409,8 @@ class EventAPI {
     // MARK: - GET by ID
     func getEventById(_ id: String, completion: @escaping (Result<EventDTO, Error>) -> Void) {
         let urlString = "\(baseURL)/\(id)"
+        print("🔍 GET Event by ID vers: \(urlString)")
+        
         guard let url = URL(string: urlString) else {
             completion(.failure(NSError(domain: "Invalid URL", code: -1, userInfo: nil)))
             return
@@ -410,6 +419,7 @@ class EventAPI {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.timeoutInterval = 60
         
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
@@ -447,7 +457,7 @@ class EventAPI {
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 30
+        request.timeoutInterval = 60  // Augmenté à 60 secondes
         
         do {
             let encoder = JSONEncoder()
@@ -485,10 +495,28 @@ class EventAPI {
                 print("📥 Headers: \(httpResponse.allHeaderFields)")
                 
                 guard (200...299).contains(httpResponse.statusCode) else {
+                    // Lire le message d'erreur du backend
+                    var errorMessage = "Erreur HTTP \(httpResponse.statusCode)"
+                    if let data = data, let responseString = String(data: data, encoding: .utf8) {
+                        print("📥 Réponse d'erreur du serveur:")
+                        print(responseString)
+                        
+                        // Essayer de parser le message d'erreur
+                        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            if let message = json["message"] as? String {
+                                errorMessage = message
+                            } else if let error = json["error"] as? String {
+                                errorMessage = error
+                            } else if let errors = json["message"] as? [String] {
+                                errorMessage = errors.joined(separator: ", ")
+                            }
+                        }
+                    }
+                    
                     let error = NSError(
                         domain: "HTTP Error",
                         code: httpResponse.statusCode,
-                        userInfo: [NSLocalizedDescriptionKey: "Erreur HTTP \(httpResponse.statusCode)"]
+                        userInfo: [NSLocalizedDescriptionKey: errorMessage]
                     )
                     completion(.failure(error))
                     return

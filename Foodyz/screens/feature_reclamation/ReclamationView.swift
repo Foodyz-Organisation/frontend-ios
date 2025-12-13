@@ -150,9 +150,21 @@ struct ReclamationView: View {
             print("   selectedPhotos count: \(selectedPhotos.count)")
             
             // ✅ Le backend récupère automatiquement nomClient et emailClient du token JWT
-            // Backend expects 'photos' as array of strings (URLs), not 'image' as single string
-            // For now, we'll send empty array or nil - photos should be uploaded separately
-            let photos: [String]? = selectedPhotos.isEmpty ? nil : [] // TODO: Upload photos and get URLs
+            // Backend expects 'photos' as array of base64 strings
+            // Convert UIImage to base64 strings
+            let photos: [String]? = selectedPhotos.isEmpty ? nil : selectedPhotos.compactMap { image in
+                // Convert UIImage to JPEG data with compression
+                guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+                    print("❌ Erreur: Impossible de convertir l'image en JPEG")
+                    return nil
+                }
+                // Convert to base64 string
+                let base64String = imageData.base64EncodedString()
+                print("📸 Photo convertie en base64 - Taille: \(base64String.count) caractères")
+                return base64String
+            }
+            
+            print("📸 Nombre de photos converties: \(photos?.count ?? 0)")
             
             let dto = ReclamationDTO(
                 commandeConcernee: commandeConcernee,

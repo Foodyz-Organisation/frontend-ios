@@ -155,6 +155,10 @@ struct HomeProfessionalView: View {
                             switch route {
                             case "menu":
                                 path.append(Screen.menu)
+                            case "deals_management":
+                                path.append(Screen.proDealsManagement)
+                            case "events":
+                                path.append(Screen.eventList)
                             case "reclamations":
                                 path.append(Screen.reclamationList)
                             // Add other routes as needed

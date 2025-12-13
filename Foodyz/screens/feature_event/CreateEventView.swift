@@ -28,12 +28,18 @@ struct CreateEventView: View {
                         placeholder: "Ex: Festival Street Food Ramadan",
                         systemImage: "plus"
                     )
+                    .onChange(of: viewModel.nom) { _, _ in
+                        viewModel.objectWillChange.send()
+                    }
                     
                     EventFieldLabel(text: "Description")
                     DescriptionTextField(
                         text: $viewModel.description,
                         placeholder: "Décrivez l'événement..."
                     )
+                    .onChange(of: viewModel.description) { _, _ in
+                        viewModel.objectWillChange.send()
+                    }
                     
                     EventFieldLabel(text: "Date de début")
                     DatePicker(
@@ -96,6 +102,7 @@ struct CreateEventView: View {
                                 .onDisappear {
                                     if let coordinate = viewModel.selectedCoordinate {
                                         viewModel.updateLocationName(for: coordinate)
+                                        viewModel.objectWillChange.send()
                                     }
                                 }
                         }
@@ -108,6 +115,9 @@ struct CreateEventView: View {
                         options: categories,
                         systemImage: "plus"
                     )
+                    .onChange(of: viewModel.categorie) { _, _ in
+                        viewModel.objectWillChange.send()
+                    }
                     
                     EventFieldLabel(text: "Statut")
                     CustomDropdown(
@@ -125,18 +135,41 @@ struct CreateEventView: View {
                             viewModel.imageState = ImagePicker.ImageState.empty
                         }
                     )
+                    .photosPicker(
+                        isPresented: $viewModel.showImagePicker,
+                        selection: $viewModel.selectedPhotoItem,
+                        matching: .images
+                    )
                     
-                    CreateButton(isValid: viewModel.isValid && !viewModel.isCreating) {
-                        viewModel.isCreating = true
-                        if let event = viewModel.createEvent() {
-                            onSubmit(event)
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    CreateButton(
+                        isValid: viewModel.isValid && !viewModel.isCreating,
+                        action: {
+                            print("🔘 Bouton CreateButton cliqué!")
+                            viewModel.isCreating = true
+                            if let event = viewModel.createEvent() {
+                                onSubmit(event)
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    viewModel.isCreating = false
+                                    dismiss()
+                                }
+                            } else {
                                 viewModel.isCreating = false
-                                dismiss()
                             }
-                        } else {
-                            viewModel.isCreating = false
                         }
+                    )
+                    .id("createButton_\(viewModel.isValid)_\(viewModel.nom.prefix(5))_\(viewModel.description.count)_\(viewModel.categorie.prefix(5))_\(viewModel.selectedCoordinate != nil)")
+                    .onChange(of: viewModel.nom) { _, _ in
+                        print("📝 Nom changé: '\(viewModel.nom)' - isValid: \(viewModel.isValid)")
+                    }
+                    .onChange(of: viewModel.description) { _, _ in
+                        print("📝 Description changée: count=\(viewModel.description.count) - isValid: \(viewModel.isValid)")
+                    }
+                    .onChange(of: viewModel.categorie) { _, _ in
+                        print("📝 Catégorie changée: '\(viewModel.categorie)' - isValid: \(viewModel.isValid)")
+                    }
+                    .onChange(of: viewModel.selectedLocationName) { _, _ in
+                        print("📝 LocationName changée: '\(viewModel.selectedLocationName)' - isValid: \(viewModel.isValid)")
+                        viewModel.objectWillChange.send()
                     }
                     
                     Spacer().frame(height: 20)
@@ -152,8 +185,30 @@ struct CreateEventView: View {
                     .foregroundColor(BrandColors.TextPrimary)
             }
         }
-        .sheet(isPresented: $viewModel.showImagePicker) {
-            ImagePicker(imageState: $viewModel.imageState)
+        .onChange(of: viewModel.selectedPhotoItem) { oldValue, newValue in
+            guard let newValue = newValue else { return }
+            
+            Task {
+                viewModel.imageState = .loading
+                
+                do {
+                    if let data = try? await newValue.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                        let image = Image(uiImage: uiImage)
+                        await MainActor.run {
+                            viewModel.imageState = .success(image)
+                        }
+                    } else {
+                        await MainActor.run {
+                            viewModel.imageState = .failure(NSError(domain: "ImagePicker", code: -1, userInfo: [NSLocalizedDescriptionKey: "Impossible de charger l'image"]))
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        viewModel.imageState = .failure(error)
+                    }
+                }
+            }
         }
         .alert("Erreur", isPresented: $viewModel.showError) {
             Button("OK", role: .cancel) { }
@@ -245,8 +300,13 @@ private struct CustomDropdown: View {
                 VStack {
                     ForEach(options, id: \.self) { option in
                         Button(option) {
+                            print("📋 Dropdown - Option sélectionnée: '\(option)'")
                             selected = option
                             isExpanded = false
+                            // Force update
+                            DispatchQueue.main.async {
+                                // This will trigger onChange in parent view
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
@@ -255,6 +315,9 @@ private struct CustomDropdown: View {
                 .background(Color.white)
                 .cornerRadius(8)
             }
+        }
+        .onChange(of: selected) { oldValue, newValue in
+            print("📋 Dropdown - selected changé de '\(oldValue)' à '\(newValue)'")
         }
     }
 }
@@ -298,13 +361,23 @@ private struct CreateButton: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            print("🔘 CreateButton - action appelée, isValid: \(isValid)")
+            if isValid {
+                action()
+            }
+        }) {
             Text(isValid ? "Créer l'événement" : "Remplissez tous les champs")
                 .foregroundColor(BrandColors.TextPrimary)
-                .frame(maxWidth: .infinity).frame(height: 56)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
                 .background(isValid ? BrandColors.Yellow : BrandColors.Yellow.opacity(0.6))
                 .cornerRadius(24)
-        }.disabled(!isValid)
+        }
+        .disabled(!isValid)
+        .onAppear {
+            print("🔘 CreateButton rendu - isValid: \(isValid)")
+        }
     }
 }
 
@@ -319,18 +392,36 @@ class CreateEventViewModel: ObservableObject {
     @Published var statut = "à venir"
     @Published var imageState: ImagePicker.ImageState = .empty
     @Published var showImagePicker = false
+    @Published var selectedPhotoItem: PhotosPickerItem? = nil
     @Published var showError = false
     @Published var errorMessage = ""
     @Published var isCreating = false
     @Published var selectedCoordinate: CLLocationCoordinate2D?
     @Published var selectedLocationName: String = ""
     
+    // Computed property that triggers updates
     var isValid: Bool {
-        !nom.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        description.count >= 10 &&
-        (selectedCoordinate != nil || !lieu.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) &&
-        !categorie.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let trimmedNom = nom.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCategorie = categorie.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLieu = lieu.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let nomValid = !trimmedNom.isEmpty
+        let descriptionValid = !trimmedDescription.isEmpty && trimmedDescription.count >= 10
+        // Lieu is valid if either coordinate is set OR location name is set OR lieu string is set
+        let lieuValid = selectedCoordinate != nil || !selectedLocationName.isEmpty || !trimmedLieu.isEmpty
+        let categorieValid = !trimmedCategorie.isEmpty
+        
+        let result = nomValid && descriptionValid && lieuValid && categorieValid
+        
+        // Always log validation state for debugging
+        print("🔍 Validation - isValid: \(result)")
+        print("   Nom: '\(trimmedNom)' (\(trimmedNom.count) chars) - Valid: \(nomValid)")
+        print("   Description: '\(trimmedDescription.prefix(50))...' (\(trimmedDescription.count) chars) - Valid: \(descriptionValid)")
+        print("   Lieu - coordinate: \(selectedCoordinate != nil), locationName: '\(selectedLocationName)', lieu: '\(trimmedLieu)' - Valid: \(lieuValid)")
+        print("   Catégorie: '\(trimmedCategorie)' - Valid: \(categorieValid)")
+        
+        return result
     }
     
     func createEvent() -> Event? {

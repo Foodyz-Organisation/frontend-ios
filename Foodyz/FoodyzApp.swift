@@ -305,7 +305,7 @@ class EventManager: ObservableObject {
         }
     }
     
-    func addEvent(_ event: Event) {
+    func addEvent(_ event: Event, completion: @escaping (Result<Event, Error>) -> Void = { _ in }) {
         let eventDTO = EventDTO(
             nom: event.nom,
             description: event.description,
@@ -322,14 +322,31 @@ class EventManager: ObservableObject {
         EventAPI.shared.createEvent(eventDTO) { [weak self] result in
             DispatchQueue.main.async {
                 switch result {
-                case .success:
+                case .success(let createdDTO):
                     print("✅ Événement créé avec succès sur le backend")
                     self?.errorMessage = nil
-                    self?.loadEvents()
+                    
+                    // Convertir le DTO en Event
+                    if let createdEvent = createdDTO.toEvent() {
+                        // Ajouter l'événement à la liste localement
+                        self?.events.insert(createdEvent, at: 0)
+                        print("✅ Événement ajouté à la liste locale")
+                        
+                        // Recharger depuis le backend pour avoir la version complète
+                        self?.loadEvents()
+                        
+                        // Appeler le completion avec succès
+                        completion(.success(createdEvent))
+                    } else {
+                        // Si la conversion échoue, recharger depuis le backend
+                        self?.loadEvents()
+                        completion(.success(event))
+                    }
                 case .failure(let error):
                     let errorMsg = error.localizedDescription
                     self?.errorMessage = "Erreur lors de la création: \(errorMsg)"
                     print("❌ Erreur lors de la création: \(errorMsg)")
+                    completion(.failure(error))
                 }
             }
         }
