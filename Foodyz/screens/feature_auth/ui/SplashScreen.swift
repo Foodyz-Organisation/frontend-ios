@@ -50,9 +50,11 @@ struct SplashView: View {
         )
         
         ZStack {
+            // Full screen gradient background
             gradient
-                .ignoresSafeArea()
+                .ignoresSafeArea(.all, edges: .all)
             
+            // Content
             VStack(spacing: 0) {
                 // ... (Logo Card and Text remains the same)
                 

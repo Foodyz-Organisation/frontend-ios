@@ -6,7 +6,7 @@ import Combine
 struct ProfessionalProfileScreen: View {
     let professionalId: String
     var onPostTap: ((String) -> Void)? = nil  // Callback for post tap
-    @StateObject private var viewModel = ProfessionalProfileViewModel()
+    @StateObject private var viewModel = ProfessionalProfilePostsViewModel()
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: ProfileTab = .about
     
@@ -502,7 +502,7 @@ struct MediaGridItem: View {
 // MARK: - ViewModel
 
 @MainActor
-class ProfessionalProfileViewModel: ObservableObject {
+class ProfessionalProfilePostsViewModel: ObservableObject {
     @Published var allPosts: [Post] = []
     @Published var videoPosts: [Post] = []
     @Published var imagePosts: [Post] = []

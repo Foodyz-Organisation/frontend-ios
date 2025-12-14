@@ -1,13 +1,70 @@
 import SwiftUI
 import Combine
+import UIKit
 
 @main
 @MainActor
 struct FoodyzApp: App {
+    init() {
+        // Configure navigation bar appearance globally
+        let navBgColor = UIColor(red: 1.0, green: 0.984, blue: 0.918, alpha: 1.0) // #FFFBEA for app screens
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = navBgColor
+        
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+        UINavigationBar.appearance().compactAppearance = appearance
+    }
+    
     var body: some Scene {
         WindowGroup {
             AppNavigation()
                 .environmentObject(SessionManager.shared)
+                .background(WindowBackgroundView())
+                .ignoresSafeArea(.all, edges: .all)
+        }
+    }
+}
+
+// MARK: - Window Background View
+struct WindowBackgroundView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .white
+        
+        // Set window background - only in actual app, not preview
+        DispatchQueue.main.async {
+            setWindowBackground()
+        }
+        
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {
+        uiView.backgroundColor = .white
+        
+        // Set window background - only in actual app, not preview
+        DispatchQueue.main.async {
+            setWindowBackground()
+        }
+    }
+    
+    private func setWindowBackground() {
+        // Skip in preview environment
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == nil else {
+            return
+        }
+        
+        let bgColor = UIColor.white
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+            for window in windowScene.windows {
+                window.backgroundColor = bgColor
+                if let rootVC = window.rootViewController {
+                    rootVC.view.backgroundColor = bgColor
+                    rootVC.view.isOpaque = true
+                }
+            }
         }
     }
 }

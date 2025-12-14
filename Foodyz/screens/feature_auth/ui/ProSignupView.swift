@@ -8,6 +8,17 @@ struct ProSignupView: View {
     @State private var showPassword: Bool = false
 
     var body: some View {
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
+        ZStack {
+            // Full screen gradient background
+            gradient
+                .ignoresSafeArea(.all)
+            
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 24) {
                 // MARK: - Logo Circle
@@ -87,9 +98,8 @@ struct ProSignupView: View {
                 Spacer(minLength: 48)
             }
             .padding(.horizontal, 24)
-            .background(Color.white)
+            }
         }
-        .ignoresSafeArea(edges: .bottom)
     }
 
     // MARK: - Signup Action

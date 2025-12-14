@@ -4,8 +4,8 @@ import UIKit
 import Combine
 
 @MainActor
-struct UserProfileView: View {
-    @StateObject private var viewModel = UserProfileViewModel()
+struct MyProfileView: View {
+    @StateObject private var viewModel = MyProfileViewModel()
     @State private var avatarItem: PhotosPickerItem?
     @EnvironmentObject private var session: SessionManager
 
@@ -158,7 +158,7 @@ private struct ProfileFieldRow: View {
 }
 
 @MainActor
-final class UserProfileViewModel: ObservableObject {
+final class MyProfileViewModel: ObservableObject {
     @Published var profile: UserProfileDTO?
     @Published var isLoading = false
     @Published var errorMessage: String?

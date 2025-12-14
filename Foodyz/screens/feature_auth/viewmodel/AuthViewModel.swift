@@ -84,7 +84,7 @@ class AuthViewModel: ObservableObject {
             TokenManager.shared.debugPrintAll()
             
             isLoggedIn = true
-            userRole = response.role
+            userRole = AppUserRole(rawValue: response.role)
             
             // Save user session for use across the app
             UserSession.shared.saveSession(

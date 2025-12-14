@@ -1,23 +1,7 @@
 import SwiftUI
-import Combine // Required for ObservableObject and @Published
-
-class AuthService: ObservableObject {
-    
-    // Publishable properties for session state
-    @Published var professionalId: String? = nil
-    @Published var authToken: String? = nil
-    @Published var isAuthenticated: Bool = false
-    
-    // Required stub methods used by the LoginView callback
-    func setSession(proId: String?, token: String?) {
-        self.professionalId = proId
-        self.authToken = token
-        self.isAuthenticated = (token != nil)
-    }
-}
 
 // -----------------------------
-// MARK: - Navigation DTOs (No change needed)
+// MARK: - Navigation DTOs
 // -----------------------------
 
 struct MenuNavigationItem: Hashable {
@@ -25,10 +9,10 @@ struct MenuNavigationItem: Hashable {
     let itemId: String?
 }
 
+// -----------------------------
+// MARK: - Screen Enum
+// -----------------------------
 
-// -----------------------------
-// MARK: - Screen Enum (No change needed)
-// -----------------------------
 enum Screen: Hashable {
     // Auth
     case splash
@@ -52,7 +36,8 @@ enum Screen: Hashable {
     case orderHistory
     case chatList(role: AppUserRole)
     case chatThread(conversationId: String, title: String?)
-    case userProfile
+    case myProfile // Current user profile (no parameter)
+    case userProfile(String) // Other user profile (with userId parameter)
     case loyaltyPoints
     case reclamationList
     case eventList
@@ -65,24 +50,24 @@ enum Screen: Hashable {
     case proDealDetail(dealId: String)
     case addDeal
     case editDeal(dealId: String)
+    
     // Reclamation
     case createReclamation(orderId: String)
     case reclamationDetail(reclamationId: String)
-    // ... Equatable and Hashable implementations ...
-    case userProfile(String)
+    
+    // Posts
     case postDetails(String)
     case userPostDetail(String) // User's own post detail with edit/delete
     case userPostsList(String) // User's all posts list view
     case professionalAddContent
-    case professionalProfile(String)
     case professionalPostDetail(String) // Professional's own post detail with edit/delete
     case editPost(String) // Edit post caption
 }
 
-
 // -----------------------------
 // MARK: - AppNavigation
 // -----------------------------
+
 struct AppNavigation: View {
     @State private var path = NavigationPath()
     @StateObject private var sessionManager = SessionManager.shared
@@ -99,18 +84,15 @@ struct AppNavigation: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-
             // Splash Screen
             SplashView(onFinished: { path.append(Screen.login) })
 
             // Navigation Destinations
             .navigationDestination(for: Screen.self) { screen in
                 let currentProId = sessionManager.userId ?? ""
-                // Get current userId safely
                 let currentUserId = sessionManager.userId ?? "mock_user_id"
 
                 switch screen {
-                    
                 // ===================================
                 // AUTH SCREENS
                 // ===================================
@@ -136,7 +118,6 @@ struct AppNavigation: View {
                             }
                         }
                     )
-
                     
                 case .userSignup:
                     UserSignupView(onFinishSignup: { path.removeLast() })
@@ -169,7 +150,7 @@ struct AppNavigation: View {
                              case "chat":
                                  path.append(Screen.chatList(role: AppUserRole.user))
                              case "profile":
-                                 path.append(Screen.userProfile)
+                                        path.append(Screen.myProfile)
                              case "loyalty_points":
                                  path.append(Screen.loyaltyPoints)
                              case "reclamations":
@@ -196,36 +177,29 @@ struct AppNavigation: View {
                             path.append(Screen.chatList(role: AppUserRole.user))
                         },
                         onOpenProfile: {
-                            path.append(Screen.userProfile)
-                        onNavigateDrawer: { route in
-                            switch route {
-                            case "signup_pro":
-                                path.append(Screen.proSignup)
-                            case "home":
-                                path.removeLast(path.count)
-                                path.append(Screen.homeUser)
-                            default:
-                                print("Navigate to \(route)")
-                            }
-                        },
-                        onNavigateToProfile: {
-                            if let userId = UserSession.shared.userId {
-                                path.append(Screen.userProfile(userId))
-                            }
-                        },
-                        onNavigateToPost: { postId in
-                            path.append(Screen.postDetails(postId))
+                                    path.append(Screen.myProfile)
                         }
                     )
                     
                 case .professionalProfile(let professionalId):
+                            // Show different screens based on whether current user is viewing their own profile
+                            if currentProId == professionalId {
+                                // Professional viewing their own profile
+                                ProfessionalProfileScreen(
+                                    professionalId: professionalId,
+                                    onPostTap: { postId in
+                                        path.append(Screen.professionalPostDetail(postId))
+                                    }
+                                )
+                            } else {
+                                // User viewing a professional's profile
                     ClientRestaurantProfileScreen(
                         professionalId: professionalId,
                         onViewMenuClick: { profId in
-                            // Navigate to menu screen for this professional
                             path.append(Screen.professionalMenu(profId))
                         }
                     )
+                            }
                     
                 case .professionalMenu(let professionalId):
                     DynamicMenuScreen(
@@ -245,11 +219,11 @@ struct AppNavigation: View {
                             path.append(Screen.orderConfirmation(professionalId))
                         }
                     )
-                    .environmentObject(cartViewModel) // Pass shared cartViewModel
+                            .environmentObject(cartViewModel)
                     
                 case .orderConfirmation(let professionalId):
                     OrderConfirmationScreen(
-                        cartViewModel: cartViewModel, // Use shared cartViewModel
+                                cartViewModel: cartViewModel,
                         professionalId: professionalId,
                         onOrderSuccess: {
                             path.removeLast() // Remove confirmation
@@ -263,24 +237,11 @@ struct AppNavigation: View {
                         userId: currentUserId,
                         onOrderClick: { orderId in
                             print("Order clicked: \(orderId)")
-                            // Future: navigate to order details
                         },
                         onReclamationClick: { orderId in
-                            // Navigate to ReclamationView with order ID
                             path.append(Screen.createReclamation(orderId: orderId))
                         }
                     )
-                
-                case .createReclamation(let orderId):
-                    ReclamationView(
-                        restaurantNames: ["Restaurant A", "Restaurant B", "Restaurant C"], // TODO: Fetch from API
-                        complaintTypes: ["Late delivery", "Missing item", "Quality issue", "Other"],
-                        commandeConcernees: [orderId] // Use the order ID as the concerned order
-                    ) { restaurant, type, description, photos in
-                        print("Réclamation soumise pour commande \(orderId): \(type)")
-                        // Navigate back after submission
-                        path.removeLast()
-                    }
 
                 case .chatList(let role):
                     ChatListView(role: role) { conversation, resolvedTitle in
@@ -290,12 +251,11 @@ struct AppNavigation: View {
                 case .chatThread(let conversationId, let title):
                     ChatDetailView(conversationId: conversationId, title: title)
 
-                case .userProfile:
-                    UserProfileView()
+                        case .myProfile:
+                            MyProfileView()
                 
                 case .loyaltyPoints:
                     LoyaltyPointsScreen(loyaltyData: nil) {
-                        print("🔙 Retour depuis LoyaltyPointsScreen")
                         path.removeLast()
                     }
                 
@@ -312,18 +272,14 @@ struct AppNavigation: View {
                 
                 case .createReclamation(let orderId):
                     ReclamationView(
-                        restaurantNames: ["Restaurant A", "Restaurant B", "Restaurant C"], // TODO: Fetch from API
+                                restaurantNames: ["Restaurant A", "Restaurant B", "Restaurant C"],
                         complaintTypes: ["Late delivery", "Missing item", "Quality issue", "Other"],
-                        commandeConcernees: [orderId] // Use the order ID as the concerned order
+                                commandeConcernees: [orderId]
                     ) { restaurant, type, description, photos in
-                        print("Réclamation soumise pour commande \(orderId): \(type)")
-                        // Navigate back after submission
                         path.removeLast()
                     }
                 
                 case .reclamationDetail(let reclamationId):
-                    // TODO: Fetch reclamation by ID and show detail
-                    // For now, this is handled by NavigationLink in ReclamationListView
                     Text("Reclamation Detail: \(reclamationId)")
                         .navigationTitle("Détails Réclamation")
                     
@@ -332,26 +288,29 @@ struct AppNavigation: View {
                 // ===================================
                     
                 case .homeProfessional:
-                    // NOTE: This order (path, professionalId) should match your HomeProfessionalView definition
                     HomeProfessionalView(path: $path, professionalId: currentProId)
-                    /* 
-                    // User snippet version (kept for reference if HomeProfessionalView is updated)
-                    HomeProfessionalView(onOpenMessages: {
-                        path.append(Screen.chatList(role: AppUserRole.professional))
-                    }) 
-                    */
+                            
                 case .menu:
-                    // 🔴 FIX APPLIED HERE: Swapping the order to professionalId, then path
-                    MenuItemManagementScreen(viewModel: menuVM,
+                            MenuItemManagementScreen(
+                                viewModel: menuVM,
                                              professionalId: currentProId,
-                                             path: $path)
-                case .createMenuItem(let proId):
-                    CreateMenuItemScreen(viewModel: menuVM,
+                                path: $path
+                            )
+                            
+                        case .createMenuItem(_):
+                            CreateMenuItemScreen(
+                                viewModel: menuVM,
                                          professionalId: currentProId,
-                                         path: $path)
+                                path: $path
+                            )
+                            
                 case .editMenuItem(let navItem):
                     if let itemId = navItem.itemId {
-                        ItemDetailsView(viewModel: menuVM, itemId: itemId, professionalId: navItem.professionalId)
+                                ItemDetailsView(
+                                    viewModel: menuVM,
+                                    itemId: itemId,
+                                    professionalId: navItem.professionalId
+                                )
                     }
                     
                 // ===================================
@@ -397,21 +356,9 @@ struct AppNavigation: View {
                 case .editDeal(let dealId):
                     AddEditDealView(viewModel: dealsVM, dealId: dealId)
                         .navigationTitle("Modifier Deal")
-                    HomeProfessionalView(
-                        path: $path,
-                        professionalId: UserSession.shared.userId ?? ""
-                    )
                     
                 case .professionalAddContent:
                     ProfessionalAddContentScreen(path: $path)
-                    
-                case .professionalProfile(let professionalId):
-                    ProfessionalProfileScreen(
-                        professionalId: professionalId,
-                        onPostTap: { postId in
-                            path.append(Screen.professionalPostDetail(postId))
-                        }
-                    )
                     
                 case .userProfile(let userId):
                     UserProfileView(
@@ -436,10 +383,15 @@ struct AppNavigation: View {
                 }
             }
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
         .environmentObject(sessionManager)
     }
 }
 
+// -----------------------------
+// MARK: - Deals Views
+// -----------------------------
 
 struct DealsListUserView: View {
     @ObservedObject var viewModel: DealsViewModel
@@ -506,18 +458,15 @@ struct DealUserCardView: View {
                 placeholderImage
             }
             
-            // Contenu
+                // Content
             VStack(alignment: .leading, spacing: 12) {
-                // Statut
                 DealStatusBadge(isActive: deal.isActive)
                 
-                // Nom du restaurant
                 Text(deal.restaurantName)
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(BrandColors.TextPrimary)
                     .lineLimit(2)
                 
-                // Description
                 Text(deal.description)
                     .font(.system(size: 14))
                     .foregroundColor(BrandColors.TextSecondary)
@@ -526,7 +475,6 @@ struct DealUserCardView: View {
                 Divider()
                     .background(BrandColors.Cream200)
                 
-                // Informations
                 DealInfoRow(icon: "tag", text: deal.category)
                 DealInfoRow(icon: "calendar", text: "Expire: \(formatDate(deal.endDate))")
             }
@@ -676,17 +624,14 @@ struct DealDetailUserView: View {
                 .cornerRadius(16)
         }
         
-        // Contenu
+            // Content
         VStack(alignment: .leading, spacing: 16) {
-            // Statut
             DealStatusBadge(isActive: deal.isActive)
             
-            // Nom du restaurant
             Text(deal.restaurantName)
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(BrandColors.TextPrimary)
             
-            // Description
             Text(deal.description)
                 .font(.system(size: 16))
                 .foregroundColor(BrandColors.TextSecondary)
@@ -695,7 +640,6 @@ struct DealDetailUserView: View {
             Divider()
                 .background(BrandColors.Cream200)
             
-            // Informations détaillées
             DetailInfoCard(icon: "tag.fill", title: "Catégorie", value: deal.category)
             DetailInfoCard(icon: "calendar", title: "Date de début", value: formatDate(deal.startDate))
             DetailInfoCard(icon: "calendar", title: "Date de fin", value: formatDate(deal.endDate))

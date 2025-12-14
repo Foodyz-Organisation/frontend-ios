@@ -64,10 +64,6 @@ struct HomeUserScreen: View {
     @State private var selectedTab: String = "home"
     @State private var showCreatePost = false
     
-    var onNavigateDrawer: ((String) -> Void)? = nil
-    var onNavigateToProfile: (() -> Void)? = nil
-    var onNavigateToPost: ((String) -> Void)? = nil
-
 
     var body: some View {
         ZStack {
@@ -76,6 +72,7 @@ struct HomeUserScreen: View {
                 // Top App Bar
                 TopAppBarView(
                     showNotifications: $showingNotifications,
+                    selectedTab: $selectedTab,
                     openDrawer: { withAnimation { showingDrawer = true } },
                     onSearchClick: { showingSearch = true },
                     onProfileClick: {

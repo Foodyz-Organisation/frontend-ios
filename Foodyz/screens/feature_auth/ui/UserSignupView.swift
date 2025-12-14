@@ -17,6 +17,17 @@ struct UserSignupView: View {
     var onFinishSignup: (() -> Void)? = nil
 
     var body: some View {
+        let gradient = LinearGradient(
+            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        
+        ZStack {
+            // Full screen gradient background
+            gradient
+                .ignoresSafeArea(.all)
+            
         ScrollView {
             VStack(spacing: 20) {
                 // MARK: Header
@@ -137,7 +148,7 @@ struct UserSignupView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 40)
         }
-        .background(Color.white.ignoresSafeArea())
+        }
     }
 
     // MARK: Signup Action

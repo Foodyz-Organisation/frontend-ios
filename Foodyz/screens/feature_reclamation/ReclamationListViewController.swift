@@ -1,6 +1,14 @@
 import UIKit
 import SwiftUI
 
+// Assuming you have these models/constants defined elsewhere
+// struct ReclamationResponseDTO: Codable { ... }
+// enum ReclamationStatus { case resolved, rejected, pending }
+// struct Reclamation { ... }
+// struct ReclamationBrandColors { ... }
+// class ReclamationAPI { static let shared = ReclamationAPI() ... }
+// struct AppAPIConstants { static let baseURL = "..." }
+
 class ReclamationListViewController: UIViewController {
     
     // MARK: - Properties
@@ -8,56 +16,66 @@ class ReclamationListViewController: UIViewController {
     private var isLoading = false
     
     // MARK: - UI Components
+    
+    // 🔄 Refresh Control
     private lazy var refreshControl: UIRefreshControl = {
         let refresh = UIRefreshControl()
         refresh.addTarget(self, action: #selector(handleRefresh), for: .valueChanged)
         return refresh
     }()
     
+    // 📋 Table View
     private lazy var tableView: UITableView = {
         let table = UITableView()
         table.translatesAutoresizingMaskIntoConstraints = false
         table.delegate = self
         table.dataSource = self
         table.separatorStyle = .none
+        // Use custom background color
         table.backgroundColor = UIColor(ReclamationBrandColors.background)
         table.register(ReclamationTableViewCell.self, forCellReuseIdentifier: "ReclamationCell")
         table.refreshControl = refreshControl
         return table
     }()
     
+    // ❌ Empty State View
     private lazy var emptyStateView: UIView = {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
         view.isHidden = true
         
+        let stackView = UIStackView()
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .vertical
+        stackView.spacing = 8
+        stackView.alignment = .center
+        
         let imageView = UIImageView(image: UIImage(systemName: "xmark.circle"))
-        imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.tintColor = UIColor(ReclamationBrandColors.textSecondary)
         imageView.contentMode = .scaleAspectFit
+        imageView.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        imageView.widthAnchor.constraint(equalToConstant: 64).isActive = true
         
         let label = UILabel()
-        label.translatesAutoresizingMaskIntoConstraints = false
         label.text = "Aucune réclamation"
         label.textColor = UIColor(ReclamationBrandColors.textSecondary)
         label.font = .systemFont(ofSize: 16)
         
-        view.addSubview(imageView)
-        view.addSubview(label)
+        stackView.addArrangedSubview(imageView)
+        stackView.addArrangedSubview(label)
         
+        view.addSubview(stackView)
+        
+        // Center the stack view within the empty state container
         NSLayoutConstraint.activate([
-            imageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            imageView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -30),
-            imageView.widthAnchor.constraint(equalToConstant: 64),
-            imageView.heightAnchor.constraint(equalToConstant: 64),
-            
-            label.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 8),
-            label.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+            stackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stackView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
         ])
         
         return view
     }()
     
+    // ⏳ Loading Indicator
     private lazy var loadingIndicator: UIActivityIndicatorView = {
         let indicator = UIActivityIndicatorView(style: .large)
         indicator.translatesAutoresizingMaskIntoConstraints = false
@@ -93,17 +111,22 @@ class ReclamationListViewController: UIViewController {
         view.addSubview(emptyStateView)
         view.addSubview(loadingIndicator)
         
+        // --- CONSTRAINTS FIXES APPLIED HERE ---
         NSLayoutConstraint.activate([
+            // 1. TableView: Pinning to ALL edges, respecting both top/bottom Safe Areas
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            // FIX: Using safeAreaLayoutGuide.bottomAnchor for modern devices
+            tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
             
-            emptyStateView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyStateView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            emptyStateView.widthAnchor.constraint(equalTo: view.widthAnchor),
-            emptyStateView.heightAnchor.constraint(equalToConstant: 200),
+            // 2. Empty State View: Should cover the entire Safe Area to appear centered correctly
+            emptyStateView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            emptyStateView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            emptyStateView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            emptyStateView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             
+            // 3. Loading Indicator: Centered in the middle of the whole view
             loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
@@ -200,20 +223,6 @@ class ReclamationListViewController: UIViewController {
         
         present(alert, animated: true)
     }
-    
-    // MARK: - Helper Methods
-    private func statusColor(for complaintType: String) -> UIColor {
-        // Vous pouvez adapter cette logique selon vos besoins
-        return UIColor(ReclamationBrandColors.orange)
-    }
-    
-    private func statusIcon(for complaintType: String) -> String {
-        return "clock.fill"
-    }
-    
-    private func statusText(for complaintType: String) -> String {
-        return "En attente"
-    }
 }
 
 // MARK: - UITableViewDataSource
@@ -224,6 +233,7 @@ extension ReclamationListViewController: UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         guard let cell = tableView.dequeueReusableCell(withIdentifier: "ReclamationCell", for: indexPath) as? ReclamationTableViewCell else {
+            // Log a warning or assert if the cast fails in development
             return UITableViewCell()
         }
         
@@ -240,7 +250,7 @@ extension ReclamationListViewController: UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let reclamationDTO = reclamations[indexPath.row]
         
-        // Map status from backend string to ReclamationStatus
+        // Mapping Logic (Kept as is - it's fine)
         let status: ReclamationStatus = {
             switch reclamationDTO.statut.lowercased() {
             case "resolue", "résolue":
@@ -254,47 +264,29 @@ extension ReclamationListViewController: UITableViewDelegate {
             }
         }()
         
-        // Parse date from ISO string
         let dateFormatter = ISO8601DateFormatter()
         dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = dateFormatter.date(from: reclamationDTO.createdAt) ?? Date()
         
-        // Build full photo URLs from backend paths
         let baseURL = AppAPIConstants.baseURL
         let photoUrls = (reclamationDTO.photos ?? []).compactMap { photoPath in
-            // Si c'est déjà une URL complète, la retourner telle quelle
+            // Logic for converting relative photo paths to full URLs (kept as is)
             if photoPath.hasPrefix("http://") || photoPath.hasPrefix("https://") {
-                print("📸 Photo URL complète: \(photoPath)")
                 return photoPath
             }
-            
-            // Si c'est du base64, le retourner tel quel (sera géré par PhotoItemView)
             if photoPath.hasPrefix("data:image") || (photoPath.count > 100 && !photoPath.contains("/")) {
-                print("📸 Photo base64 détectée")
                 return photoPath
             }
             
-            // Si c'est un chemin relatif, construire l'URL complète
-            // Le backend stocke généralement les photos dans un dossier comme /uploads/reclamations/
-            // ou utilise un endpoint comme /reclamation/photos/:filename
             var cleanPath = photoPath.hasPrefix("/") ? String(photoPath.dropFirst()) : photoPath
             
-            // Si le chemin ne commence pas par un préfixe connu, essayer différents formats
             if !cleanPath.contains("uploads") && !cleanPath.contains("reclamations") && !cleanPath.contains("photos") {
-                // Essayer avec /uploads/reclamations/
                 let fullURL1 = "\(baseURL)/uploads/reclamations/\(cleanPath)"
-                print("📸 Photo chemin relatif (format 1): \(photoPath) -> URL: \(fullURL1)")
                 return fullURL1
             }
             
             let fullURL = "\(baseURL)/\(cleanPath)"
-            print("📸 Photo chemin relatif: \(photoPath) -> URL complète: \(fullURL)")
             return fullURL
-        }
-        
-        print("📸 Total de photos construites: \(photoUrls.count)")
-        for (index, url) in photoUrls.enumerated() {
-            print("📸 Photo \(index + 1): \(url)")
         }
         
         // Navigation vers les détails (SwiftUI)
@@ -310,13 +302,14 @@ extension ReclamationListViewController: UITableViewDelegate {
                 response: reclamationDTO.responseMessage
             )
         ) {
-            // Action de retour
+            // Action de retour closure placeholder
         }
         
         let hostingController = UIHostingController(rootView: detailView)
         navigationController?.pushViewController(hostingController, animated: true)
     }
     
+    // Using automaticDimension is correct for dynamic cell heights
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return UITableView.automaticDimension
     }
@@ -334,6 +327,7 @@ class ReclamationTableViewCell: UITableViewCell {
         view.translatesAutoresizingMaskIntoConstraints = false
         view.backgroundColor = .white
         view.layer.cornerRadius = 16
+        // Keep the shadow light for a subtle effect
         view.layer.shadowColor = UIColor.black.cgColor
         view.layer.shadowOpacity = 0.05
         view.layer.shadowOffset = CGSize(width: 0, height: 2)
@@ -341,6 +335,7 @@ class ReclamationTableViewCell: UITableViewCell {
         return view
     }()
     
+    // ... (Other UI components setup is kept as is) ...
     private let orderIconImageView: UIImageView = {
         let imageView = UIImageView(image: UIImage(systemName: "cart.fill"))
         imageView.translatesAutoresizingMaskIntoConstraints = false
@@ -395,6 +390,7 @@ class ReclamationTableViewCell: UITableViewCell {
         return label
     }()
     
+    // MARK: - Initialization and Setup (Kept as is)
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         setupCell()
@@ -417,12 +413,15 @@ class ReclamationTableViewCell: UITableViewCell {
         containerView.addSubview(complaintTypeLabel)
         containerView.addSubview(descriptionLabel)
         
+        // Constraints are robust and kept as is, using auto layout for dynamic sizing
         NSLayoutConstraint.activate([
+            // Container View pins to contentView with 6pt padding top/bottom and 16pt left/right
             containerView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
             containerView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             containerView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             containerView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
             
+            // Layout of components inside the container (Kept as is)
             orderIconImageView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16),
             orderIconImageView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
             orderIconImageView.widthAnchor.constraint(equalToConstant: 20),
@@ -451,10 +450,12 @@ class ReclamationTableViewCell: UITableViewCell {
             descriptionLabel.topAnchor.constraint(equalTo: complaintTypeLabel.bottomAnchor, constant: 8),
             descriptionLabel.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 16),
             descriptionLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -16),
+            // Crucial for automaticDimension: pinning the description label's bottom to the container's bottom
             descriptionLabel.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -16)
         ])
     }
     
+    // MARK: - Configuration (Kept as is)
     func configure(with reclamation: ReclamationResponseDTO) {
         orderNumberLabel.text = "Commande #\(reclamation.commandeConcernee.prefix(8))"
         complaintTypeLabel.text = reclamation.complaintType

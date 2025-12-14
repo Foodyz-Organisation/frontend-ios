@@ -78,14 +78,7 @@ struct CustomSecureField: View {
     var body: some View {
         HStack {
             Image(systemName: icon).foregroundColor(.gray)
-            if showPassword {
-                TextField(placeholder, text: $text)
-            } else {
-                SecureField(placeholder, text: $text)
-            }
-            Button(action: { showPassword.toggle() }) {
-                Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill").foregroundColor(.gray)
-            }
+            SecureField(placeholder, text: $text)
         }
         .padding()
         .background(Color(.systemGray6))
