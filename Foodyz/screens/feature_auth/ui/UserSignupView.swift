@@ -79,7 +79,7 @@ struct UserSignupView: View {
                     .cornerRadius(18)
                     .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
                 }
-                .onChange(of: avatarItem) { _, newValue in
+                .onChange(of: avatarItem) { newValue in
                     Task { await updateAvatarSelection(with: newValue) }
                 }
 

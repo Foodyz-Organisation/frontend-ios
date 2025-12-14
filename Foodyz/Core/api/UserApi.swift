@@ -6,7 +6,9 @@ final class UserAPI {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
-    private let baseURL = URL(string: "http://localhost:3000/users/")
+    private let baseURL: URL? = {
+        return URL(string: "\(APIConfig.baseURLString)/users/")
+    }()
 
     private init(session: URLSession = .shared) {
         self.session = session

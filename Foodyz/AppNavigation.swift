@@ -74,6 +74,9 @@ struct AppNavigation: View {
     @StateObject private var menuVM = MenuViewModel()
     @StateObject private var dealsVM = DealsViewModel()
     @StateObject private var eventManager = EventManager()
+    @State private var incomingCallOffer: [String: Any]?
+    @State private var isIncomingCallPresented = false
+    @EnvironmentObject private var session: SessionManager
     
     @StateObject private var cartViewModel: CartViewModel
     
@@ -109,6 +112,7 @@ struct AppNavigation: View {
                             if let userId = sessionManager.userId {
                                 cartViewModel.updateUserId(userId)
                             }
+                            connectSocket()
                             path.removeLast(path.count)
                             switch role {
                             case .user:
@@ -140,38 +144,24 @@ struct AppNavigation: View {
                     
                 case .homeUser:
                     HomeUserScreen(
-                         onNavigateDrawer: { route in
-                             switch route {
-                             case "signup_pro":
-                                 path.append(Screen.proSignup)
-                             case "home":
-                                 path.removeLast(path.count)
-                                 path.append(Screen.homeUser)
-                             case "chat":
-                                 path.append(Screen.chatList(role: AppUserRole.user))
-                             case "profile":
-                                        path.append(Screen.myProfile)
-                             case "loyalty_points":
-                                 path.append(Screen.loyaltyPoints)
-                             case "reclamations":
-                                 path.append(Screen.reclamationList)
-                             case "events":
-                                 path.append(Screen.userEventList)
-                             case "login":
-                                 path.removeLast(path.count)
-                                 path.append(Screen.login)
-                             default:
-                                 print("Navigate to \(route)")
-                             }
-                         },
-                         onNavigateToProfessional: { professionalId in
-                            path.append(Screen.professionalProfile(professionalId))
-                        },
-                        onNavigateToOrders: {
-                            path.append(Screen.orderHistory)
-                        },
-                        onNavigateToDeals: {
-                            path.append(Screen.dealsList)
+                        onNavigateDrawer: { route in
+                            switch route {
+                            case "signup_pro":
+                                path.append(Screen.proSignup)
+                            case "home":
+                                path.removeLast(path.count)
+                                path.append(Screen.homeUser)
+                            case "chat":
+                                path.append(Screen.chatList(role: AppUserRole.user))
+                            case "profile":
+                                path.append(Screen.userProfile)
+                            case "login":
+                                disconnectSocket()
+                                path.removeLast(path.count)
+                                path.append(Screen.login)
+                            default:
+                                print("Navigate to \(route)")
+                            }
                         },
                         onOpenMessages: {
                             path.append(Screen.chatList(role: AppUserRole.user))
@@ -383,9 +373,33 @@ struct AppNavigation: View {
                 }
             }
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbarColorScheme(.light, for: .navigationBar)
-        .environmentObject(sessionManager)
+        .onReceive(SocketIOManager.shared.callMadeSubject) { offerDict in
+             print("AppNavigation received call offer: \(offerDict)")
+             self.incomingCallOffer = offerDict
+             self.isIncomingCallPresented = true
+        }
+        .sheet(isPresented: $isIncomingCallPresented) {
+            if let offer = incomingCallOffer,
+               let conversationId = offer["conversationId"] as? String {
+               CallView(conversationId: conversationId, incomingOffer: offer)
+            } else {
+               Text("Incoming call error")
+            }
+        }
+        .onAppear {
+             if session.accessToken != nil {
+                 connectSocket()
+             }
+        }
+    }
+    
+    private func connectSocket() {
+        guard let token = session.accessToken else { return }
+        SocketIOManager.shared.connect(token: token)
+    }
+    
+    private func disconnectSocket() {
+        SocketIOManager.shared.disconnect()
     }
 }
 

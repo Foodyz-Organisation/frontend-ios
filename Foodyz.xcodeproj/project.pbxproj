@@ -7,7 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		18594AD32ECE07AB00F8F773 /* MapPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18594AD22ECE07AB00F8F773 /* MapPickerView.swift */; };
+		5A4DA7B02EEC99B800D9B6B4 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = AA03 /* SocketIO */; };
+		5A4DA7B12EEC99B800D9B6B4 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = AA04 /* WebRTC */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A4DA7B12EEC99B800D9B6B4 /* WebRTC in Frameworks */,
+				5A4DA7B02EEC99B800D9B6B4 /* SocketIO in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -84,6 +87,8 @@
 			);
 			name = Foodyz;
 			packageProductDependencies = (
+				AA03 /* SocketIO */,
+				AA04 /* WebRTC */,
 			);
 			productName = Foodyz;
 			productReference = 1DCAF0BB2EB9E89400118411 /* Foodyz.app */;
@@ -113,6 +118,10 @@
 			);
 			mainGroup = 1DCAF0B22EB9E89400118411;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA01 /* XCRemoteSwiftPackageReference "socket" */,
+				AA02 /* XCRemoteSwiftPackageReference "WebRTC" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1DCAF0BC2EB9E89400118411 /* Products */;
 			projectDirPath = "";
@@ -197,7 +206,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -254,7 +263,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -274,8 +283,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7XBT63JJHR;
 				ENABLE_PREVIEWS = YES;
+<<<<<<< HEAD
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Foodyz/Info.plist;
+=======
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "L'application a besoin d'accéder à la caméra pour les appels vidéo.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "L'application a besoin d'accéder au microphone pour les appels audio.";
+>>>>>>> origin/chat_management
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -287,7 +302,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.examtest.Foodyz;
+				PRODUCT_BUNDLE_IDENTIFIER = com.examtest.Foodyzzz;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -309,8 +324,14 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7XBT63JJHR;
 				ENABLE_PREVIEWS = YES;
+<<<<<<< HEAD
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Foodyz/Info.plist;
+=======
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "L'application a besoin d'accéder à la caméra pour les appels vidéo.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "L'application a besoin d'accéder au microphone pour les appels audio.";
+>>>>>>> origin/chat_management
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -322,7 +343,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.examtest.Foodyz;
+				PRODUCT_BUNDLE_IDENTIFIER = com.examtest.Foodyzzz;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -356,6 +377,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA01 /* XCRemoteSwiftPackageReference "socket" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/socketio/socket.io-client-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 16.1.0;
+			};
+		};
+		AA02 /* XCRemoteSwiftPackageReference "WebRTC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stasel/WebRTC";
+			requirement = {
+				kind = exactVersion;
+				version = 120.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA03 /* SocketIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA01 /* XCRemoteSwiftPackageReference "socket" */;
+			productName = SocketIO;
+		};
+		AA04 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA02 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1DCAF0B32EB9E89400118411 /* Project object */;
 }
