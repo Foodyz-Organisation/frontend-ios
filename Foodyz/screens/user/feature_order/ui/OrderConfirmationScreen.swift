@@ -8,9 +8,11 @@ struct OrderConfirmationScreen: View {
     @State private var selectedOrderType: OrderType?
     @State private var showingAlert = false
     @State private var alertMessage = ""
+    @State private var showingShareLocation = false
     
     let professionalId: String
     let onOrderSuccess: () -> Void
+    var onNavigateToPayment: ((OrderType, String?, String?) -> Void)? = nil // Navigate to payment screen
     
     var cartItems: [CartItemResponse] {
         cartViewModel.cartItems
@@ -23,7 +25,7 @@ struct OrderConfirmationScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             // Top Bar
-            OrderConfirmationTopBar(onBackClick: { dismiss() })
+            OrderConfirmationTopBar(onBackClick: { dismiss() }) 
             
             // Content
             ScrollView {
@@ -44,30 +46,44 @@ struct OrderConfirmationScreen: View {
                 onCancel: { dismiss() },
                 onConfirm: {
                     guard let orderType = selectedOrderType else { return }
-                    cartViewModel.checkout(
-                        professionalId: professionalId,
-                        orderType: orderType,
-                        onSuccess: { order in
-                            alertMessage = "Order placed successfully!"
-                            showingAlert = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                                onOrderSuccess()
-                            }
-                        },
-                        onError: { error in
-                            alertMessage = error
-                            showingAlert = true
-                        }
-                    )
+                    
+                    if orderType == .delivery {
+                        // Show Share Location Screen first
+                        showingShareLocation = true
+                    } else {
+                        // Direct navigation for other types
+                        onNavigateToPayment?(orderType, nil, nil)
+                    }
                 },
                 isConfirmEnabled: selectedOrderType != nil
             )
         }
+        .navigationBarBackButtonHidden(true)
         .background(Color(hex: 0xFFF9FAFB))
         .alert("Order Status", isPresented: $showingAlert) {
             Button("OK") { }
         } message: {
             Text(alertMessage)
+        }
+        .sheet(isPresented: $showingShareLocation) {
+            ShareLocationScreen(
+                onShare: {
+                    showingShareLocation = false
+                    // Proceed with location sharing enabled (logic handled by helper internally or separate service)
+                    // Then navigate to payment
+                    if let type = selectedOrderType {
+                        onNavigateToPayment?(type, nil, nil)
+                    }
+
+                },
+                onSkip: {
+                    showingShareLocation = false
+                    // Proceed without
+                    if let type = selectedOrderType {
+                        onNavigateToPayment?(type, nil, nil)
+                    }
+                }
+            )
         }
     }
 }

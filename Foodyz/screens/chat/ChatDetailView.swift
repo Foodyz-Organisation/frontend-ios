@@ -6,6 +6,7 @@ import WebRTC
 struct ChatDetailView: View {
     @StateObject private var viewModel: ChatDetailViewModel
     @EnvironmentObject private var session: SessionManager
+    @Environment(\.dismiss) var dismiss
     private let title: String
 
     init(conversationId: String, title: String?) {
@@ -14,18 +15,15 @@ struct ChatDetailView: View {
     }
 
     var body: some View {
-        content
-    }
-    
-    @ViewBuilder
-    private var content: some View {
         VStack(spacing: 0) {
+            // Messages List
             messagesList
-
+            
+            // Composer
             composer
         }
-
         .navigationTitle(viewModel.title ?? title)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 // Audio Call Button
@@ -168,12 +166,16 @@ private struct MessageBubble: View {
             if isCurrentUser == true { Spacer() }
 
             VStack(alignment: isCurrentUser == true ? .trailing : .leading, spacing: 6) {
-                Text(message.displayContent)
-                    .padding(14)
-                    .background(bubbleBackground)
-                    .foregroundColor(isCurrentUser == true ? .white : AppColors.darkGray)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .shadow(color: ChatColors.bubbleShadow, radius: 6, y: 4)
+                if message.isSharedPost, let meta = message.meta {
+                    sharedPostView(meta: meta)
+                } else {
+                    Text(message.displayContent)
+                        .padding(14)
+                        .background(bubbleBackground)
+                        .foregroundColor(isCurrentUser == true ? .white : AppColors.darkGray)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: ChatColors.bubbleShadow, radius: 6, y: 4)
+                }
 
                 // 🔹 Badges de modération
                 HStack(spacing: 8) {
@@ -211,6 +213,80 @@ private struct MessageBubble: View {
             if isCurrentUser != true { Spacer() }
         }
         .padding(.horizontal)
+    }
+    
+    @ViewBuilder
+    private func sharedPostView(meta: MessageMeta) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Post Image
+            if let imageUrl = meta.postPrimaryImageUrl ?? meta.sharedPostImage {
+                AsyncImage(url: URL(string: imageUrl)) { phase in
+                    switch phase {
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 200)
+                            .overlay {
+                                ProgressView()
+                            }
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .failure:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 200)
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .foregroundColor(.gray)
+                            }
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+                .frame(height: 200)
+                .frame(maxWidth: 250)
+                .clipped()
+            }
+            
+            // Post Caption
+            VStack(alignment: .leading, spacing: 4) {
+                Text(message.displayContent)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isCurrentUser == true ? .white.opacity(0.9) : AppColors.darkGray)
+                
+                if let caption = meta.postCaption ?? meta.sharedPostCaption, !caption.isEmpty {
+                    Text(caption)
+                        .font(.system(size: 13))
+                        .foregroundColor(isCurrentUser == true ? .white.opacity(0.8) : AppColors.darkGray.opacity(0.8))
+                        .lineLimit(2)
+                }
+                
+                // Post metadata
+                HStack(spacing: 8) {
+                    if let foodType = meta.postFoodType {
+                        Text(foodType)
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.white.opacity(0.2))
+                            .cornerRadius(8)
+                    }
+                    
+                    if let price = meta.price {
+                        Text("$\(Int(price))")
+                            .font(.caption2)
+                            .foregroundColor(isCurrentUser == true ? .white.opacity(0.8) : AppColors.darkGray.opacity(0.8))
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: 250, alignment: .leading)
+        }
+        .background(bubbleBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: ChatColors.bubbleShadow, radius: 6, y: 4)
     }
 
     @ViewBuilder
@@ -282,6 +358,22 @@ final class ChatDetailViewModel: ObservableObject {
             if conversation.kind == .privateChat,
                let otherId = conversation.participants.first(where: { $0 != currentUserId }) {
                 
+                // Try to get name from peers first (works for all user types)
+                do {
+                    let peers = try await chatAPI.fetchPeers()
+                    if let peer = peers.first(where: { $0.id == otherId }) {
+                        await MainActor.run {
+                            self.title = peer.name
+                        }
+                        return
+                    }
+                } catch {
+                    // If fetchPeers fails, fall back to UserAPI (but only for regular users)
+                    print("Failed to fetch peers, trying UserAPI fallback: \(error.localizedDescription)")
+                }
+                
+                // Fallback: Try UserAPI (only works for regular users, not professionals)
+                // This will fail silently for professionals/kitchens, which is fine
                 if let profile = try? await userAPI.fetchProfile(userId: otherId) {
                     await MainActor.run {
                         self.title = profile.username
@@ -309,7 +401,10 @@ final class ChatDetailViewModel: ObservableObject {
         isSending = true
         errorMessage = nil
         do {
-            let payload = SendMessageRequest(content: trimmed, type: .text)
+            // Filter bad words before sending
+            let moderatedText = BadWordsFilter.shared.moderate(trimmed)
+            
+            let payload = SendMessageRequest(content: moderatedText, type: .text)
             let message = try await chatAPI.sendMessage(conversationId: conversationId, body: payload)
             messages.append(message)
             messages.sort(by: { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) })

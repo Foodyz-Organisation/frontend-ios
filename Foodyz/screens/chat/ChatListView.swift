@@ -4,6 +4,7 @@ import Combine
 @MainActor
 struct ChatListView: View {
     let role: AppUserRole
+    @Binding var path: NavigationPath // added path binding
     var onConversationSelected: (ConversationDTO, String?) -> Void
 
     @StateObject private var viewModel = ChatListViewModel()
@@ -13,63 +14,275 @@ struct ChatListView: View {
     @State private var isStartingConversation = false
     @State private var startConversationError: String?
     @State private var isDeleteConfirmationPresented = false
+    
+    // Navigation callbacks
+    var onHomeClick: (() -> Void)? = nil
+    var onMessagesClick: (() -> Void)? = nil
+    var onOrdersClick: (() -> Void)? = nil
+    var onProfileClick: (() -> Void)? = nil
+    var onSearchClick: (() -> Void)? = nil
+    var onAddPostClick: (() -> Void)? = nil
+    var onOpenDrawer: (() -> Void)? = nil
+    @State private var showNotifications = false
+    @State private var selectedTab = "chat"
+    @State private var showDeleteAllDialog = false // For Pro top bar
+
+    @State private var showingDrawer = false // For drawer (both user and pro)
+    @State private var searchText = "" // Search text for professional chat
+    var onNavigateDrawer: ((String) -> Void)? = nil // For user drawer navigation
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    statusSection
-
-                    ForEach(viewModel.conversations) { conversation in
-                        Button {
-                            openConversation(conversation)
-                        } label: {
-                            conversationRow(for: conversation)
+        ZStack(alignment: .bottom) {
+            Color.white.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // MARK: - Header
+                if role == .professional {
+                    VStack(spacing: 16) {
+                        // Custom Pro Header
+                        HStack {
+                            HStack(spacing: 12) {
+                                Image("burger_logo_placeholder") // Use app logo or profile image
+                                    .resizable()
+                                    .frame(width: 40, height: 40)
+                                    .clipShape(Circle())
+                                    .overlay {
+                                         if UIImage(named: "burger_logo_placeholder") == nil {
+                                             Image(systemName: "person.circle.fill")
+                                                 .resizable()
+                                                 .foregroundColor(.black)
+                                         }
+                                     }
+                                
+                                Text("Foodyz Pro")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(.black)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                withAnimation { showingDrawer = true }
+                            }) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(.black)
+                            }
                         }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 10) // Adjust top padding
+                        
+                        // Search Bar
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.orange)
+                            
+                            TextField("Search users or conversations...", text: $searchText)
+                                .foregroundColor(.primary)
+                        }
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(25) // Rounded corners like pill shape
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 25)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 16)
+                    }
+                    .padding(.bottom, 10)
+                    .background(Color.foodyzBackground) // Background for header area if needed
+                } else {
+                    // User Top Bar - Android-style TopAppBar
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Foodies")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.black)
+                            
+                            Spacer()
+                            
+                            // Hamburger menu button - opens drawer
+                            Button(action: {
+                                withAnimation { showingDrawer = true }
+                            }) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundColor(.black)
+                                    .padding(8)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.white)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 12)
-                .padding(.bottom, 100)
-            }
-            .background(AppColors.background)
-            .refreshable {
-                async let convTask: Void = viewModel.loadConversations()
-                async let peerTask: Void = viewModel.loadPeers(force: true)
-                _ = await (convTask, peerTask)
-            }
-            .task {
-                await viewModel.loadPeers()
-                await viewModel.loadConversations()
-                viewModel.startAutoRefresh()
-            }
-            .onDisappear {
-                viewModel.stopAutoRefresh()
-            }
-            .overlay(alignment: .center) {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .padding()
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
+                
+                // MARK: - Content
+                ZStack(alignment: .bottomTrailing) {
+                    ScrollView {
+                        LazyVStack(spacing: 16) {
+                            statusSection
+                                .padding(.top, 10)
+
+                            ForEach(viewModel.conversations) { conversation in
+                                Button {
+                                    openConversation(conversation)
+                                } label: {
+                                    conversationRow(for: conversation)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, role == .professional ? 100 : 100) // Space for bottom bar
+                    }
+                    .background(role == .professional ? Color.foodyzBackground : AppColors.background)
+                    .refreshable {
+                        async let convTask: Void = viewModel.loadConversations()
+                        async let peerTask: Void = viewModel.loadPeers(force: true)
+                        _ = await (convTask, peerTask)
+                    }
+                    
+
                 }
+            }
+            
+            // MARK: - Bottom Bar
+            if role == .professional {
+                ProfessionalBottomBar(
+                    path: $path,
+                    selectedTab: "chat",
+                    openDrawer: { withAnimation { showingDrawer = true } }
+                )
+            } else {
+                 VStack {
+                    Spacer()
+                    UserBottomBar(
+                        selectedTab: $selectedTab,
+                        onTabSelect: { tab in
+                            if tab == "home" {
+                                onHomeClick?()
+                            } else if tab == "chat" {
+                                // Already on chat
+                            }
+                        },
+                        onReels: { /* onNavigateToReels?() */ },
+                        onTrending: { /* onNavigateToTrending?() */ },
+                        onChat: {
+                            // Already here
+                        },
+                        onMenu: {
+                             // Handle menu action or navigation
+                             // Since we are adding the menu, we might want to open the drawer if available
+                             // but ChatListView for 'user' role doesn't seem to have a drawer setup in this view directly 
+                             // except via onOpenDrawer callback if provided.
+                             // However, looking at the code, `showNotifications` is used in TopAppBar, but here we are in BottomBar.
+                             // Let's just create a placeholder or reuse existing logic if possible.
+                             // The previous code navigated to userNotifications. 
+                             // Since onMenu is the new slot, we should probably toggle drawer.
+                             // But checking the file, `showingDrawer` is for professional.
+                             // Providing an empty action or drawer toggle if applicable.
+                             // The compilation error is simply about the label mismatch.
+                             // I will rename `onNotifications` to `onMenu` and keep the body if appropriate or empty it.
+                             // Wait, the user's intent with "Menu" usually implies opening the side drawer.
+                             // `onOpenDrawer` is available as a callback.
+                             onOpenDrawer?()
+                        }
+                    )
+                }
+                .padding(.bottom, 20)
+                .ignoresSafeArea(.keyboard)
+            }
+            
+            // Drawer Overlay for Pro
+            if role == .professional && showingDrawer {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation { showingDrawer = false } }
+                
+                    ProfessionalDrawer(
+                        onCloseDrawer: { withAnimation { showingDrawer = false } },
+                            navigateTo: { route in
+                                // Handle drawer nav
+                                if route == "logout" {
+                                    // Handle logout
+                                    path.removeLast(path.count)
+                                    path.append(Screen.login)
+                                    TokenManager.shared.clearAllData()
+                                } else if route == "profile" {
+                                    if let proId = TokenManager.shared.getUserId() {
+                                        path.append(Screen.professionalProfile(proId))
+                                    }
+                                } else {
+                                    // Other routes
+                                }
+                                withAnimation { showingDrawer = false }
+                            }
+                        )
+                        .transition(.move(edge: .trailing))
+                        .animation(.easeInOut, value: showingDrawer)
+                }
+            
+            // Drawer Overlay for User
+            if role == .user && showingDrawer {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation { showingDrawer = false } }
+                
+                DrawerView(
+                    onCloseDrawer: { withAnimation { showingDrawer = false } },
+                    navigateTo: { route in
+                        // Use the navigation handler if provided, otherwise handle locally
+                        if let handler = onNavigateDrawer {
+                            handler(route)
+                        } else {
+                            // Fallback local navigation
+                            switch route {
+                            case "home":
+                                onHomeClick?()
+                            case "chat":
+                                // Already on chat
+                                break
+                            case "profile":
+                                onProfileClick?()
+                            case "order_history":
+                                onOrdersClick?()
+                            case "login":
+                                path.removeLast(path.count)
+                                path.append(Screen.login)
+                                TokenManager.shared.clearAllData()
+                            default:
+                                print("Navigate to \(route)")
+                            }
+                        }
+                        withAnimation { showingDrawer = false }
+                    },
+                    currentRoute: selectedTab
+                )
+                .transition(.move(edge: .trailing))
+                .animation(.easeInOut, value: showingDrawer)
             }
 
-            newChatButton
         }
-        .background(AppColors.background.ignoresSafeArea())
-        .navigationTitle(role == .professional ? "Client Chats" : "Messages")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(role: .destructive) {
-                    isDeleteConfirmationPresented = true
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                }
+        .task {
+            await viewModel.loadPeers()
+            await viewModel.loadConversations()
+            viewModel.startAutoRefresh()
+        }
+        .onDisappear {
+            viewModel.stopAutoRefresh()
+        }
+        .overlay(alignment: .center) {
+            if viewModel.isLoading {
+                ProgressView()
+                    .padding()
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(12)
             }
         }
+        .background(role == .professional ? Color.foodyzBackground.ignoresSafeArea() : AppColors.background.ignoresSafeArea())
+        .navigationBarBackButtonHidden(true)
         .alert("Delete All Chats?", isPresented: $isDeleteConfirmationPresented) {
             Button("Delete All", role: .destructive) {
                 Task {
@@ -123,7 +336,9 @@ struct ChatListView: View {
 
     @ViewBuilder
     private var statusSection: some View {
-        if let error = viewModel.errorMessage {
+        // Only show error if it's not a cancellation error
+        if let error = viewModel.errorMessage,
+           !error.lowercased().contains("cancelled") {
             ChatStatusCard(text: error, systemImage: "exclamationmark.triangle.fill", tint: .red)
         } else if viewModel.conversations.isEmpty && !viewModel.isLoading {
             ChatStatusCard(
@@ -141,30 +356,31 @@ struct ChatListView: View {
 
         return HStack(alignment: .center, spacing: 16) {
             AvatarView(avatarURL: avatarURL, size: 54, fallback: title)
-
+            
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(AppColors.darkGray)
-
+                HStack {
+                    Text(title)
+                        .font(.system(size: 16, weight: .bold)) // Bold name
+                        .foregroundColor(.black)
+                    Spacer()
+                    if let updatedAt = conversation.updatedAt {
+                        Text(updatedAt, style: .time) // Or custom formatter to match "Dec 26"
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                }
+                
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            if let updatedAt = conversation.updatedAt {
-                Text(updatedAt, style: .time)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
             }
         }
-        .contentShape(Rectangle()) // Ensure tap target covers the whole row within the button
-        .padding()
-        .background(AppColors.white)
-        .cornerRadius(24)
-        .shadow(color: Color.black.opacity(0.05), radius: 12, x: 0, y: 6)
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(16) // Slightly less rounded than 24 usually looks cleaner for cards
+        // Remove shadow or keep subtle
+        // .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 
     private func summary(for conversation: ConversationDTO) -> String {
@@ -266,6 +482,11 @@ final class ChatListViewModel: ObservableObject {
             conversations = response
             await fetchMissingPeers()
         } catch {
+            // Don't show cancellation errors (expected during refresh)
+            if error is CancellationError {
+                // Silently handle cancellation - it's expected during refresh
+                return
+            }
             errorMessage = error.localizedDescription
         }
         if showLoading { isLoading = false }
@@ -274,7 +495,8 @@ final class ChatListViewModel: ObservableObject {
     func loadPeers(force: Bool = false) async {
         if !force, !peers.isEmpty { return }
         do {
-            let currentUserId = await MainActor.run { SessionManager.shared.userId }
+            // Use TokenManager instead of SessionManager for consistency
+            let currentUserId = TokenManager.shared.getUserId()
             let response = try await chatAPI.fetchPeers()
             let filtered = response.filter { $0.id != currentUserId }
             updatePeers(with: filtered)
@@ -286,7 +508,8 @@ final class ChatListViewModel: ObservableObject {
 
 
     private func fetchMissingPeers() async {
-        let currentUserId = SessionManager.shared.userId
+        // Use TokenManager instead of SessionManager for consistency
+        let currentUserId = TokenManager.shared.getUserId()
          // Re-calculate existing IDs from the dictionary to be safe
         let existingPeerIds = Set(peersDictionary.keys)
         

@@ -9,6 +9,20 @@ enum MessageType: String, Codable {
     case text
     case image
     case file
+    case sharedPost = "shared_post"
+    
+    // Handle unknown types gracefully by defaulting to text
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        // If the raw value doesn't match any case, default to text
+        if let type = MessageType(rawValue: rawValue) {
+            self = type
+        } else {
+            print("⚠️ Unknown message type: \(rawValue), defaulting to text")
+            self = .text
+        }
+    }
 }
 
 struct ConversationDTO: Codable, Identifiable, Hashable {
@@ -48,6 +62,7 @@ struct MessageDTO: Codable, Identifiable, Hashable {
     let moderatedContent: String?
     let isSpam: Bool?
     let spamConfidence: Double?
+    let meta: MessageMeta?
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
@@ -61,12 +76,62 @@ struct MessageDTO: Codable, Identifiable, Hashable {
         case moderatedContent
         case isSpam
         case spamConfidence
+        case meta
     }
     
     /// Returns the content that should be displayed to users
     var displayContent: String {
         return moderatedContent ?? content
     }
+    
+    /// Returns true if this is a shared post message
+    var isSharedPost: Bool {
+        return type == .sharedPost || meta?.isSharedPost == true
+    }
+}
+
+// MARK: - Message Meta
+struct MessageMeta: Codable, Hashable {
+    let sharedPostId: String?
+    let sharedPostCaption: String?
+    let sharedPostImage: String?
+    let isSharedPost: Bool?
+    let sharedBy: SharedByInfo?
+    let postId: String?
+    let postPrimaryImageUrl: String?
+    let postCaption: String?
+    let postMediaUrls: [String]?
+    let postMediaType: String?
+    let postFoodType: String?
+    let postOwner: PostOwnerInfo?
+    let price: Double?
+    let preparationTime: Int?
+    let likeCount: Int?
+    let commentCount: Int?
+    let saveCount: Int?
+    let viewsCount: Int?
+    let postCreatedAt: String?
+    let sharedAt: String?
+    
+    // Make it flexible to handle any additional fields
+    private enum CodingKeys: String, CodingKey {
+        case sharedPostId, sharedPostCaption, sharedPostImage, isSharedPost, sharedBy
+        case postId, postPrimaryImageUrl, postCaption, postMediaUrls, postMediaType
+        case postFoodType, postOwner, price, preparationTime, likeCount, commentCount
+        case saveCount, viewsCount, postCreatedAt, sharedAt
+    }
+}
+
+struct SharedByInfo: Codable, Hashable {
+    let id: String
+    let name: String
+    let model: String
+}
+
+struct PostOwnerInfo: Codable, Hashable {
+    let id: String
+    let name: String
+    let avatarUrl: String?
 }
 
 struct SendMessageRequest: Codable {

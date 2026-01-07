@@ -8,4 +8,5 @@ struct CreateMenuItemDto: Codable {
     let category: Category
     let ingredients: [IngredientDto]
     let options: [OptionDto]
+    let preparationTimeMinutes: Int
 }

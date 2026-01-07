@@ -4,14 +4,23 @@ struct DrawerItem: Identifiable {
     let id = UUID()
     let icon: String
     let label: String
-    let route: String // Used to track selection or initiate external navigation
+    let route: String
     let isLogout: Bool
+    let isSpecial: Bool // For the orange signup button
+    
+    init(icon: String, label: String, route: String, isLogout: Bool = false, isSpecial: Bool = false) {
+        self.icon = icon
+        self.label = label
+        self.route = route
+        self.isLogout = isLogout
+        self.isSpecial = isSpecial
+    }
 }
 
 struct DrawerView: View {
     let onCloseDrawer: () -> Void
     let navigateTo: (String) -> Void
-    var currentRoute: String // Highlight the currently active route
+    var currentRoute: String
     @EnvironmentObject private var session: SessionManager
     
     // Points de fidélité
@@ -22,116 +31,189 @@ struct DrawerView: View {
     @State private var debugDetails: [String] = []
     
     let menuItems: [DrawerItem] = [
-        DrawerItem(icon: "house.fill", label: "Home", route: "home", isLogout: false),
-        DrawerItem(icon: "bubble.left.and.bubble.right.fill", label: "Messages", route: "chat", isLogout: false),
-        DrawerItem(icon: "calendar", label: "Événements", route: "events", isLogout: false),
-        DrawerItem(icon: "exclamationmark.triangle.fill", label: "Reclamations", route: "reclamations", isLogout: false),
-        DrawerItem(icon: "gearshape.fill", label: "Settings", route: "settings", isLogout: false),
-        DrawerItem(icon: "heart.fill", label: "Favorites", route: "favorites", isLogout: false),
-        DrawerItem(icon: "person.fill", label: "Profile", route: "profile", isLogout: false),
-        DrawerItem(icon: "questionmark.circle.fill", label: "Help & Support", route: "help", isLogout: false),
-        DrawerItem(icon: "person.badge.plus", label: "Signup as Professional", route: "signup_pro", isLogout: false)
+        DrawerItem(icon: "list.bullet", label: "Mes Réclamations", route: "reclamations"),
+        DrawerItem(icon: "calendar", label: "Événements", route: "events"),
+        DrawerItem(icon: "cart.fill", label: "Liste des Deals", route: "deals"),
+        DrawerItem(icon: "doc.text.fill", label: "Orders History", route: "order_history"),
+        DrawerItem(icon: "bookmark.fill", label: "Saved Posts", route: "saved_posts")
     ]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // MARK: Profile Header
-            VStack(alignment: .leading, spacing: 8) {
-                Circle()
-                    .fill(HomeColors.primary.opacity(0.1))
-                    .frame(width: 60, height: 60)
-                    .overlay(
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .scaledToFit()
+        ZStack(alignment: .leading) {
+            Color(red: 0.96, green: 0.96, blue: 0.96).edgesIgnoringSafeArea(.all)
+            
+            VStack(alignment: .leading, spacing: 0) {
+                // MARK: - Header with Logo and Close Button
+                HStack {
+                    Text("foodyz")
+                        .font(.custom("Pacifico", size: 32))
+                        .foregroundColor(Color.orange)
+                        .italic()
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        onCloseDrawer()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundColor(.gray)
-                            .frame(width: 60, height: 60)
-                    )
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(HomeColors.primary, lineWidth: 2))
-
-                Text("John Doe")
-                    .font(.headline).fontWeight(.bold)
-                    .foregroundColor(HomeColors.darkGray)
-                Text("john.doe@example.com")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-            }
-            .padding(.top, 40)
-            .padding(.bottom, 20)
-            .padding(.horizontal, 20)
-            
-            // MARK: Loyalty Points Card
-            VStack(spacing: 8) {
-                LoyaltyPointsCard(points: loyaltyPoints) {
-                    print("⭐ Clic sur Points de Fidélité - Navigation vers loyalty_points")
-                    navigateTo("loyalty_points")
-                    onCloseDrawer()
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 50)
+                .padding(.bottom, 20)
                 
-                // Debug Tool - Long press to show/hide
-                if showDebugInfo {
-                    DebugLoyaltyPointsView(
-                        points: loyaltyPoints,
-                        isLoading: isLoadingPoints,
-                        message: debugMessage,
-                        details: debugDetails
-                    )
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-            .onLongPressGesture(minimumDuration: 1.0) {
-                showDebugInfo.toggle()
-                if showDebugInfo {
-                    updateDebugInfo()
-                }
-            }
-            
-            Divider()
-            
-            // MARK: Menu Items
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(menuItems) { item in
-                        DrawerRow(item: item, isSelected: currentRoute == item.route)
-                            .onTapGesture {
-                                navigateTo(item.route)
-                                onCloseDrawer()
+                // MARK: - User Profile Section (Clickable)
+                Button(action: {
+                    navigateTo("profile")
+                    onCloseDrawer()
+                }) {
+                    HStack(spacing: 12) {
+                        // Profile Image with AsyncImage fallback
+                        if let avatarURL = session.avatarURL, let url = URL(string: avatarURL) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 56, height: 56)
+                                        .clipShape(Circle())
+                                case .failure(_), .empty:
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 56, height: 56)
+                                        .overlay(
+                                            Image(systemName: "person.fill")
+                                                .font(.system(size: 28))
+                                                .foregroundColor(.gray)
+                                        )
+                                @unknown default:
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 56, height: 56)
+                                }
                             }
+                        } else {
+                            Circle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 56, height: 56)
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .font(.system(size: 28))
+                                        .foregroundColor(.gray)
+                                )
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(session.displayName ?? "Guest")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.black)
+                            
+                            Text(session.email ?? "No email")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                                .lineLimit(1)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    .background(Color.white)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // MARK: - Dark Loyalty Points Card
+                VStack(spacing: 8) {
+                    DarkLoyaltyPointsCard(points: loyaltyPoints) {
+                        print("⭐ Clic sur Points de Fidélité - Navigation vers loyalty_points")
+                        navigateTo("loyalty_points")
+                        onCloseDrawer()
                     }
                     
-                    // MARK: Logout Item
-                    DrawerRow(
-                        item: DrawerItem(icon: "arrow.right.square.fill", label: "Logout", route: "logout", isLogout: true),
-                        isSelected: currentRoute == "logout"
-                    )
-                    .onTapGesture {
-                        Task {
-                            do {
-                                // Call your logout API
-                                try await AuthAPI.shared.logout()
-                                
-                                // Close drawer
-                                onCloseDrawer()
-                                
-                                // Navigate back to login
-                                navigateTo("login")
-                            } catch {
-                                print("Logout failed: \(error.localizedDescription)")
-                                // Optionally show alert to user
-                            }
-                        }
+                    // Debug Tool - Long press to show/hide
+                    if showDebugInfo {
+                        DebugLoyaltyPointsView(
+                            points: loyaltyPoints,
+                            isLoading: isLoadingPoints,
+                            message: debugMessage,
+                            details: debugDetails
+                        )
                     }
-                    .padding(.top, 20)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 16)
+                .onLongPressGesture(minimumDuration: 1.0) {
+                    showDebugInfo.toggle()
+                    if showDebugInfo {
+                        updateDebugInfo()
+                    }
+                }
+                
+                // MARK: - Menu Items (White Cards)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        ForEach(menuItems) { item in
+                            WhiteMenuCard(item: item, isSelected: currentRoute == item.route)
+                                .onTapGesture {
+                                    navigateTo(item.route)
+                                    onCloseDrawer()
+                                }
+                        }
+                        
+                        // MARK: - Orange Signup Button
+                        OrangeSignupButton {
+                            navigateTo("signup_pro")
+                            onCloseDrawer()
+                        }
+                        .padding(.top, 8)
+                        
+                        // MARK: - Logout Button
+                        Button(action: {
+                            Task {
+                                do {
+                                    try await AuthAPI.shared.logout()
+                                    onCloseDrawer()
+                                    navigateTo("login")
+                                } catch {
+                                    print("Logout failed: \(error.localizedDescription)")
+                                }
+                            }
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "arrow.right.square.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.red)
+                                
+                                Text("Logout")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.red)
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .padding(.top, 8)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
+                }
+                
+                Spacer()
             }
-            
-            Spacer()
         }
-        .frame(width: 280)
-        .background(AppColors.white)
-        .edgesIgnoringSafeArea(.vertical)
         .onAppear {
             loadLoyaltyPoints()
         }
@@ -173,7 +255,6 @@ struct DrawerView: View {
                         message: "❌ Erreur API: \(error.localizedDescription)",
                         details: ["Tentative de chargement depuis les réclamations..."]
                     )
-                    // Essayer de charger depuis les réclamations directement
                     self.loadPointsFromReclamations()
                 }
             }
@@ -241,72 +322,131 @@ struct DrawerView: View {
     }
 }
 
-// MARK: Drawer Row Sub-Component
-struct DrawerRow: View {
-    let item: DrawerItem
-    let isSelected: Bool
-    
-    var body: some View {
-        HStack(spacing: 15) {
-            Image(systemName: item.icon)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 22, height: 22)
-                .foregroundColor(item.isLogout ? .red : (isSelected ? AppColors.primary : AppColors.darkGray))
-            
-            Text(item.label)
-                .font(.subheadline).fontWeight(.medium)
-                .foregroundColor(item.isLogout ? .red : AppColors.darkGray)
-            
-            Spacer()
-        }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 20)
-        .background(isSelected && !item.isLogout ? AppColors.primary.opacity(0.1) : Color.clear)
-        .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Loyalty Points Card
-struct LoyaltyPointsCard: View {
+// MARK: - Dark Loyalty Points Card (matching Android design)
+struct DarkLoyaltyPointsCard: View {
     let points: Int
     let onTap: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Star Icon
-            Image(systemName: "star.fill")
-                .font(.system(size: 24))
-                .foregroundColor(Color(red: 1.0, green: 0.8, blue: 0.0)) // Yellow
-                .frame(width: 40, height: 40)
-            
-            // Points Text
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(points) Points")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(points >= 0 ? Color(red: 0.5, green: 0.2, blue: 0.8) : Color.red) // Purple si positif, rouge si négatif
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                // Star Icon with yellow background circle
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.2))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(Color.orange)
+                }
                 
-                Text("Points de Fidélité")
-                    .font(.system(size: 12))
-                    .foregroundColor(HomeColors.darkGray)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(points) Points")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Text("Points de Fidélité")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.6))
             }
-            .onAppear {
-                print("📊 LoyaltyPointsCard affichée avec \(points) points")
+            .padding(16)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color(red: 0.2, green: 0.25, blue: 0.35), Color(red: 0.15, green: 0.2, blue: 0.3)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .cornerRadius(12)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - White Menu Card (matching Android design)
+struct WhiteMenuCard: View {
+    let item: DrawerItem
+    let isSelected: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon with yellow background circle
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.1))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: item.icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(Color.orange)
             }
+            
+            Text(item.label)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.black)
             
             Spacer()
             
-            // Chevron
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(.gray)
         }
-        .padding(16)
-        .background(Color(red: 0.95, green: 0.9, blue: 1.0)) // Light purple background
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Color.white)
         .cornerRadius(12)
-        .onTapGesture {
-            onTap()
+        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+    }
+}
+
+// MARK: - Orange Signup Button (matching Android design)
+struct OrangeSignupButton: View {
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: "person.badge.plus")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white)
+                }
+                
+                Text("Signup as Professional")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.orange, Color(red: 1.0, green: 0.6, blue: 0.0)]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(12)
+            .shadow(color: Color.orange.opacity(0.3), radius: 8, x: 0, y: 4)
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

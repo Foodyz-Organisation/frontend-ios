@@ -21,241 +21,266 @@ struct UserProfileView: View {
     
     var body: some View {
         ZStack {
-            Color(hex: "#FFFBEA")
+            Color.white
                 .ignoresSafeArea()
             
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Profile Header
-                    VStack(spacing: 16) {
-                        // Profile Picture
-                        if let user = viewModel.user, 
-                           let profileUrl = user.profilePictureUrl,
-                           !profileUrl.isEmpty,
-                           let url = URL(string: profileUrl) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 100, height: 100)
-                                        .clipShape(Circle())
-                                case .failure(_), .empty:
+            VStack(spacing: 0) {
+                // MARK: - Custom Top Bar
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text(viewModel.user?.displayName ?? "roua")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.black)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        if let path = path {
+                            path.wrappedValue.append(Screen.settings)
+                        }
+                    }) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(.black)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // MARK: - Beige Header Section
+                        Rectangle()
+                            .fill(Color(red: 0.93, green: 0.91, blue: 0.85))
+                            .frame(height: 120)
+                        
+                        // MARK: - Profile Content
+                        VStack(spacing: 16) {
+                            // Profile Picture (overlapping beige section)
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 110, height: 110)
+                                
+                                if let user = viewModel.user,
+                                   let profileUrl = user.profilePictureUrl,
+                                   !profileUrl.isEmpty,
+                                   let url = URL(string: profileUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(Circle())
+                                        case .failure(_), .empty:
+                                            Circle()
+                                                .fill(Color.gray.opacity(0.3))
+                                                .frame(width: 100, height: 100)
+                                                .overlay(
+                                                    Image(systemName: "person.fill")
+                                                        .font(.system(size: 40))
+                                                        .foregroundColor(.gray)
+                                                )
+                                        @unknown default:
+                                            Circle()
+                                                .fill(Color.gray.opacity(0.3))
+                                                .frame(width: 100, height: 100)
+                                        }
+                                    }
+                                } else {
                                     Circle()
-                                        .fill(Color.gray.opacity(0.3))
+                                        .fill(Color.gray.opacity(0.2))
                                         .frame(width: 100, height: 100)
                                         .overlay(
                                             Image(systemName: "person.fill")
                                                 .font(.system(size: 40))
-                                                .foregroundColor(.white)
+                                                .foregroundColor(.gray)
                                         )
-                                @unknown default:
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 100, height: 100)
                                 }
                             }
-                        } else {
-                            Circle()
-                                .fill(LinearGradient(
-                                    colors: [Color(hex: "#F59E0B"), Color(hex: "#EF4444")],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ))
-                                .frame(width: 100, height: 100)
-                                .overlay(
-                                    Text(viewModel.user?.displayName.prefix(1).uppercased() ?? "U")
-                                        .font(.system(size: 40, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        
-                        // Username & Full Name
-                        VStack(spacing: 4) {
-                            Text(viewModel.user?.displayName ?? "Loading...")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(Color(hex: "#1F2937"))
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.orange, lineWidth: 3)
+                                    .frame(width: 100, height: 100)
+                            )
+                            .offset(y: -60)
+                            .padding(.bottom, -60)
                             
-                            if let fullName = viewModel.user?.fullName {
-                                Text(fullName)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        
-                        // Stats
-                        HStack(spacing: 32) {
+                            // Username
+                            Text("@\(viewModel.user?.displayName ?? "roua")")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.gray)
+                            
+                            // Posts Count
                             VStack(spacing: 4) {
                                 Text("\(viewModel.posts.count)")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Color(hex: "#1F2937"))
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.black)
                                 Text("Posts")
-                                    .font(.caption)
+                                    .font(.system(size: 14))
                                     .foregroundColor(.gray)
                             }
                             
-                            VStack(spacing: 4) {
-                                Text("\(viewModel.user?.followerCount ?? 0)")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Color(hex: "#1F2937"))
-                                Text("Followers")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            VStack(spacing: 4) {
-                                Text("\(viewModel.user?.followingCount ?? 0)")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(Color(hex: "#1F2937"))
-                                Text("Following")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .padding(.top, 8)
-                    }
-                    .padding(.vertical, 32)
-                    .padding(.horizontal, 16)
-                    .background(Color.white)
-                    .cornerRadius(24)
-                    .shadow(color: Color.black.opacity(0.05), radius: 8)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    
-                    // Tab Switcher
-                    HStack(spacing: 0) {
-                        Button(action: {
-                            selectedTab = .posts
-                        }) {
-                            VStack(spacing: 4) {
-                                Text("Posts")
-                                    .font(.system(size: 16, weight: selectedTab == .posts ? .bold : .regular))
-                                    .foregroundColor(selectedTab == .posts ? Color(hex: "#1F2937") : .gray)
-                                
-                                Rectangle()
-                                    .fill(selectedTab == .posts ? Color(hex: "#F59E0B") : Color.clear)
-                                    .frame(height: 2)
+                            // Edit Profile Button
+                            if isOwnProfile {
+                                Button(action: {
+                                    // Navigate to edit profile
+                                }) {
+                                    Text("Edit Profile")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 14)
+                                        .background(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [Color.orange, Color(red: 1.0, green: 0.7, blue: 0.0)]),
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .cornerRadius(12)
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.top, 8)
                             }
                         }
-                        .frame(maxWidth: .infinity)
+                        .padding(.top, 20)
+                        .background(Color.white)
                         
-                        Button(action: {
-                            selectedTab = .saves
-                        }) {
-                            VStack(spacing: 4) {
-                                Text("Saves")
-                                    .font(.system(size: 16, weight: selectedTab == .saves ? .bold : .regular))
-                                    .foregroundColor(selectedTab == .saves ? Color(hex: "#1F2937") : .gray)
-                                
-                                Rectangle()
-                                    .fill(selectedTab == .saves ? Color(hex: "#F59E0B") : Color.clear)
-                                    .frame(height: 2)
+                        // MARK: - Tab Switcher
+                        HStack(spacing: 0) {
+                            Button(action: {
+                                selectedTab = .posts
+                            }) {
+                                VStack(spacing: 8) {
+                                    Text("Posts")
+                                        .font(.system(size: 16, weight: selectedTab == .posts ? .bold : .medium))
+                                        .foregroundColor(selectedTab == .posts ? .black : .gray)
+                                    
+                                    Rectangle()
+                                        .fill(selectedTab == .posts ? Color.orange : Color.clear)
+                                        .frame(height: 3)
+                                }
                             }
+                            .frame(maxWidth: .infinity)
+                            
+                            Button(action: {
+                                selectedTab = .saves
+                            }) {
+                                VStack(spacing: 8) {
+                                    Text("Saved")
+                                        .font(.system(size: 16, weight: selectedTab == .saves ? .bold : .medium))
+                                        .foregroundColor(selectedTab == .saves ? .black : .gray)
+                                    
+                                    Rectangle()
+                                        .fill(selectedTab == .saves ? Color.orange : Color.clear)
+                                        .frame(height: 3)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 24)
-                    .padding(.bottom, 12)
-                    
-                    // Content based on selected tab
-                    if selectedTab == .posts {
-                        // Posts Grid
-                        if viewModel.isLoading {
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                    .scaleEffect(1.5)
-                                    .tint(Color(hex: "#F59E0B"))
-                                Text("Loading posts...")
-                                    .foregroundColor(.gray)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
-                        } else if viewModel.posts.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "photo.on.rectangle.angled")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(.gray.opacity(0.5))
-                                Text("No posts yet")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
-                        } else {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 2),
-                                GridItem(.flexible(), spacing: 2),
-                                GridItem(.flexible(), spacing: 2)
-                            ], spacing: 2) {
-                                ForEach(viewModel.posts) { post in
-                                    PostGridItem(post: post, isOwnProfile: isOwnProfile)
-                                        .onTapGesture {
-                                            if isOwnProfile, let path = path {
-                                                // Navigate to all posts list view
-                                                path.wrappedValue.append(Screen.userPostsList(userId))
+                        .padding(.top, 24)
+                        .background(Color.white)
+                        
+                        // MARK: - Content based on selected tab
+                        if selectedTab == .posts {
+                            // Posts Grid
+                            if viewModel.isLoading {
+                                VStack(spacing: 16) {
+                                    ProgressView()
+                                        .scaleEffect(1.5)
+                                        .tint(Color.orange)
+                                    Text("Loading posts...")
+                                        .foregroundColor(.gray)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
+                            } else if viewModel.posts.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "photo.on.rectangle.angled")
+                                        .font(.system(size: 70))
+                                        .foregroundColor(.gray.opacity(0.4))
+                                    Text("No posts yet")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.gray)
+                                    Text("Start sharing your moments")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray.opacity(0.7))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
+                                .padding(.bottom, 100)
+                            } else {
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 2),
+                                    GridItem(.flexible(), spacing: 2),
+                                    GridItem(.flexible(), spacing: 2)
+                                ], spacing: 2) {
+                                    ForEach(viewModel.posts) { post in
+                                        PostGridItem(post: post, isOwnProfile: isOwnProfile)
+                                            .onTapGesture {
+                                                if isOwnProfile, let path = path {
+                                                    path.wrappedValue.append(Screen.userPostsList(userId))
+                                                }
                                             }
-                                        }
+                                    }
                                 }
+                                .padding(.top, 16)
                             }
-                            .padding(.horizontal, 16)
-                        }
-                    } else {
-                        // Saved Posts Grid
-                        if viewModel.isLoadingSaves {
-                            VStack(spacing: 16) {
-                                ProgressView()
-                                    .scaleEffect(1.5)
-                                    .tint(Color(hex: "#F59E0B"))
-                                Text("Loading saved posts...")
-                                    .foregroundColor(.gray)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
-                        } else if viewModel.savedPosts.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "bookmark")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(.gray.opacity(0.5))
-                                Text("No saved posts yet")
-                                    .font(.headline)
-                                    .foregroundColor(.gray)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
                         } else {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 2),
-                                GridItem(.flexible(), spacing: 2),
-                                GridItem(.flexible(), spacing: 2)
-                            ], spacing: 2) {
-                                ForEach(viewModel.savedPosts) { post in
-                                    PostGridItem(post: post, isOwnProfile: false)
+                            // Saved Posts Grid
+                            if viewModel.isLoadingSaves {
+                                VStack(spacing: 16) {
+                                    ProgressView()
+                                        .scaleEffect(1.5)
+                                        .tint(Color.orange)
+                                    Text("Loading saved posts...")
+                                        .foregroundColor(.gray)
                                 }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
+                            } else if viewModel.savedPosts.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "bookmark")
+                                        .font(.system(size: 70))
+                                        .foregroundColor(.gray.opacity(0.4))
+                                    Text("No saved posts yet")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.gray)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
+                                .padding(.bottom, 100)
+                            } else {
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible(), spacing: 2),
+                                    GridItem(.flexible(), spacing: 2),
+                                    GridItem(.flexible(), spacing: 2)
+                                ], spacing: 2) {
+                                    ForEach(viewModel.savedPosts) { post in
+                                        PostGridItem(post: post, isOwnProfile: false)
+                                    }
+                                }
+                                .padding(.top, 16)
                             }
-                            .padding(.horizontal, 16)
                         }
+                        
+                        Spacer(minLength: 40)
                     }
-                    
-                    Spacer(minLength: 40)
                 }
             }
         }
-        .navigationTitle("Profile")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { dismiss() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
-                    }
-                    .foregroundColor(Color(hex: "#F59E0B"))
-                }
-            }
-        }
+        .navigationBarHidden(true)
         .onAppear {
             Task {
                 await viewModel.loadUserProfile(userId: userId)
@@ -347,10 +372,22 @@ class UserProfileViewModel: ObservableObject {
     @Published var isLoadingSaves = false
     @Published var errorMessage: String?
     
+    private let userAPI = UserAPI.shared
+    
     func loadUserProfile(userId: String) async {
         isLoading = true
         errorMessage = nil
         
+        // 1. Fetch User Profile directly from API
+        do {
+            let userProfileDto = try await userAPI.fetchProfile(userId: userId)
+            self.user = mapDtoToOwner(dto: userProfileDto)
+        } catch {
+            print("Error loading user profile details: \(error)")
+            // Fallback: don't stop, try loading posts which might contain owner info
+        }
+        
+        // 2. Fetch User Posts
         do {
             // Fetch all posts and filter by ownerId
             let allPosts = try await PostsAPI.shared.getAllPosts()
@@ -369,9 +406,9 @@ class UserProfileViewModel: ObservableObject {
                 return date1 > date2
             }
             
-            // Extract user info from first post
-            if let firstPost = posts.first, let postOwner = firstPost.owner {
-                user = postOwner
+            // If we failed to fetch user profile earlier (e.g. API error), try to extract from posts
+            if self.user == nil, let firstPost = posts.first, let postOwner = firstPost.owner {
+                self.user = postOwner
             }
             
         } catch {
@@ -380,7 +417,7 @@ class UserProfileViewModel: ObservableObject {
             } else {
                 errorMessage = error.localizedDescription
             }
-            print("Error loading user profile: \(error)")
+            print("Error loading user posts: \(error)")
         }
         
         isLoading = false
@@ -402,6 +439,44 @@ class UserProfileViewModel: ObservableObject {
         }
         
         isLoadingSaves = false
+    }
+    
+    /// Helper to convert UserProfileDTO to Owner struct
+    private func mapDtoToOwner(dto: UserProfileDTO) -> Owner {
+        // Prioritize uploaded avatar, fallback to Google profile picture
+        let rawUrl = dto.avatarUrl ?? dto.profilePictureUrl
+        let finalUrl = sanitizeURL(rawUrl)
+        
+        return Owner(
+            id: dto.id,
+            email: dto.email,
+            username: dto.username,
+            fullName: nil, // DTO doesn't have fullName yet
+            profilePictureUrl: finalUrl,
+            followerCount: 0,
+            followingCount: 0
+        )
+    }
+    
+    /// Helper: Sanitize URL for iOS (localhost/relative paths)
+    private func sanitizeURL(_ urlString: String?) -> String? {
+        guard let urlString = urlString, !urlString.isEmpty else { return nil }
+        
+        // Pass through data URIs (Base64 images) untouched
+        if urlString.hasPrefix("data:") {
+            return urlString
+        }
+        
+        // If it's already a full web URL (http/https)
+        if urlString.hasPrefix("http") {
+             // Fix Android Emulator localhost (10.0.2.2) -> iOS localhost (127.0.0.1)
+            return urlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")
+        }
+        
+        // If it's a relative path, prepend the base URL
+        // Assuming backend is at http://127.0.0.1:3000
+        let cleanPath = urlString.hasPrefix("/") ? String(urlString.dropFirst()) : urlString
+        return "http://127.0.0.1:3000/\(cleanPath)"
     }
 }
 

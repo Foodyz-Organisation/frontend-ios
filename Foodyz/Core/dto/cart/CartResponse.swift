@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Cart Response
-struct CartResponse: Codable {
+struct CartResponse: Codable, Equatable {
     let id: String
     let userId: String
     let items: [CartItemResponse]
@@ -27,7 +27,7 @@ struct CartResponse: Codable {
 }
 
 // MARK: - Cart Item Response
-struct CartItemResponse: Codable, Identifiable {
+struct CartItemResponse: Codable, Identifiable, Equatable {
     let menuItemId: String
     let quantity: Int
     let name: String

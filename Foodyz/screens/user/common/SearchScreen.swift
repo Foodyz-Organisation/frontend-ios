@@ -4,83 +4,100 @@ import SwiftUI
 struct SearchScreen: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = SearchViewModel()
+    @FocusState private var isSearchFocused: Bool
     
     let onProfessionalSelected: (String) -> Void
     
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search Bar
+                // MARK: - Header
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Search Professionals")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.black)
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        // Filter action placeholder
+                    }) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.black)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                
+                // MARK: - Search Bar
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundColor(Color(hex: 0x64748B))
+                        .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.0)) // Yellow/Gold
                     
                     TextField("Search by name...", text: $viewModel.searchText)
                         .font(.system(size: 16))
-                        .foregroundColor(Color(hex: 0x1F2937))
+                        .foregroundColor(Color(red: 0.2, green: 0.2, blue: 0.3)) // Dark text
+                        .focused($isSearchFocused)
                         .autocorrectionDisabled()
+                        .submitLabel(.search)
+                    
+                    if !viewModel.searchText.isEmpty {
+                        Button(action: {
+                            viewModel.searchText = ""
+                        }) {
+                            Image(systemName: "xmark")
+                                .foregroundColor(.gray)
+                        }
+                    }
                 }
                 .padding(14)
                 .background(Color.white)
+                .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(hex: 0xFDE68A), lineWidth: 2)
+                        .stroke(Color(red: 1.0, green: 0.85, blue: 0.0), lineWidth: 1.5) // Yellow border
                 )
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.bottom, 16)
+                .background(Color.white)
                 
-                // Content
+                // MARK: - Content
                 ZStack {
+                    Color(red: 0.98, green: 0.98, blue: 0.99).ignoresSafeArea() // Light bg
+                    
                     if viewModel.isLoading {
-                        VStack {
-                            Spacer()
-                            ProgressView()
-                                .scaleEffect(1.2)
-                                .tint(Color(hex: 0x1D4ED8))
-                            Text("Searching...")
-                                .font(.system(size: 14))
-                                .foregroundColor(Color(hex: 0x64748B))
-                                .padding(.top, 8)
-                            Spacer()
-                        }
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(Color(red: 1.0, green: 0.75, blue: 0.0))
                     } else if let errorMessage = viewModel.errorMessage {
-                        VStack {
-                            Spacer()
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 48))
-                                .foregroundColor(Color(hex: 0xEF4444))
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 40))
+                                .foregroundColor(.red)
                             Text(errorMessage)
-                                .font(.system(size: 16))
-                                .foregroundColor(Color(hex: 0x64748B))
+                                .foregroundColor(.gray)
                                 .multilineTextAlignment(.center)
-                                .padding(.horizontal, 32)
-                                .padding(.top, 16)
-                            Spacer()
                         }
                         .padding()
                     } else if viewModel.searchResults.isEmpty && !viewModel.searchText.isEmpty {
-                        VStack {
-                            Spacer()
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 48))
-                                .foregroundColor(Color(hex: 0xD1D5DB))
-                            Text("No professionals found")
-                                .font(.system(size: 16))
-                                .foregroundColor(Color(hex: 0x64748B))
-                                .padding(.top, 16)
-                            Spacer()
-                        }
+                        VStack(spacing: 12) {
+                             Text("No professionals found")
+                                 .foregroundColor(.gray)
+                         }
                     } else if viewModel.searchResults.isEmpty {
-                        VStack {
-                            Spacer()
-                            Image(systemName: "person.2.fill")
-                                .font(.system(size: 48))
-                                .foregroundColor(Color(hex: 0xD1D5DB))
-                            Text("Search for professionals")
-                                .font(.system(size: 16))
-                                .foregroundColor(Color(hex: 0x64748B))
-                                .padding(.top, 16)
-                            Spacer()
+                        VStack(spacing: 12) {
+                            Text("Type a name to search for professionals")
+                                .foregroundColor(.gray)
                         }
                     } else {
                         ScrollView {
@@ -91,28 +108,14 @@ struct SearchScreen: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+                            .padding(16)
                         }
                     }
                 }
             }
-            .background(Color(hex: 0xF7F7F7))
-            .navigationTitle("Search Professionals")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "arrow.backward")
-                            .foregroundColor(Color(hex: 0x1F2937))
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: { /* Filter action */ }) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .foregroundColor(Color(hex: 0x1F2937))
-                    }
-                }
+            .navigationBarHidden(true)
+            .onAppear {
+                isSearchFocused = true
             }
         }
     }
@@ -126,46 +129,61 @@ struct ProfessionalListItem: View {
     var body: some View {
         Button(action: onItemClick) {
             HStack(spacing: 16) {
-                // Professional Icon
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: 0xFFE5E7EB))
-                        .frame(width: 48, height: 48)
-                    
-                    Image(systemName: "briefcase.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(Color(hex: 0xFF1F2A37))
+                // Avatar
+                if let avatarUrl = professional.avatarUrl, let url = URL(string: avatarUrl) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 56, height: 56)
+                            .clipShape(Circle())
+                    } placeholder: {
+                        Image(systemName: "person.circle.fill")
+                            .resizable()
+                            .foregroundColor(.gray.opacity(0.3))
+                            .frame(width: 56, height: 56)
+                    }
+                } else {
+                    // Fallback Avatar if no URL
+                    Image(professional.fullName?.lowercased().contains("burger") ?? false ? "burger_placeholder" : "person.circle.fill") // Logic to match screenshot example "charlot" -> burger image? No, generic fallback.
+                    // Actually, screenshot shows "charlot" with a burger image. Professional likely set that as avatar.
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                        .foregroundColor(.gray.opacity(0.3))
+                         // If no image asset, system image
+                        .overlay(
+                            Group {
+                                if professional.avatarUrl == nil {
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 24))
+                                }
+                            }
+                        )
+                        .background(Color.gray.opacity(0.1))
+                        .clipShape(Circle())
                 }
                 
-                // Professional Info
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(professional.fullName ?? "Unnamed Professional")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(Color(hex: 0xFF1F2A37))
-                        .lineLimit(1)
-                    
-                    Text(professional.email)
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: 0xFF64748B))
-                        .lineLimit(1)
-                }
+                // Info
+                Text(professional.fullName ?? "Unknown Professional")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.15)) // Almost black
+                    .lineLimit(1)
                 
                 Spacer()
             }
-            .padding(16)
+            .padding(12)
             .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 3)
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
-// MARK: - Preview
 struct SearchScreen_Previews: PreviewProvider {
     static var previews: some View {
-        SearchScreen { professionalId in
-            print("Selected: \(professionalId)")
-        }
+        SearchScreen { _ in }
     }
 }

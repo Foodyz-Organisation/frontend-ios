@@ -14,6 +14,7 @@ class TokenManager {
         static let userRole = "user_role"
         static let userName = "user_name"
         static let userEmail = "user_email"
+        static let profilePhotoUrl = "profile_photo_url"
     }
     
     private init() {}
@@ -25,7 +26,8 @@ class TokenManager {
         userId: String,
         role: String,
         name: String,
-        email: String
+        email: String,
+        profilePhotoUrl: String? = nil
     ) {
         print("========== SAVING USER DATA ==========")
         print("AccessToken (first 30 chars): \(String(accessToken.prefix(30)))...")
@@ -42,6 +44,11 @@ class TokenManager {
         userDefaults.set(name, forKey: Keys.userName)
         userDefaults.set(email, forKey: Keys.userEmail)
         
+        if let photoUrl = profilePhotoUrl {
+            userDefaults.set(photoUrl, forKey: Keys.profilePhotoUrl)
+            print("ProfilePhotoUrl: \(photoUrl)")
+        }
+        
         userDefaults.synchronize()
         
         print("✅ User data saved successfully")
@@ -51,11 +58,12 @@ class TokenManager {
     // MARK: - Getters
     func getAccessToken() -> String? {
         let token = userDefaults.string(forKey: Keys.accessToken)
-        if let token = token {
-            print("🔑 getAccessToken() -> \(String(token.prefix(30)))...")
-        } else {
-            print("⚠️ getAccessToken() -> NULL")
-        }
+        // Removed excessive logging - only log when debugging is needed
+        // if let token = token {
+        //     print("🔑 getAccessToken() -> \(String(token.prefix(30)))...")
+        // } else {
+        //     print("⚠️ getAccessToken() -> NULL")
+        // }
         return token
     }
     
@@ -67,36 +75,45 @@ class TokenManager {
     
     func getUserId() -> String? {
         let userId = userDefaults.string(forKey: Keys.userId)
-        if let userId = userId {
-            print("👤 getUserId() -> \(userId)")
-        } else {
-            print("⚠️ getUserId() -> NULL")
-        }
+        // Removed excessive logging - only log when debugging is needed
+        // if let userId = userId {
+        //     print("👤 getUserId() -> \(userId)")
+        // } else {
+        //     print("⚠️ getUserId() -> NULL")
+        // }
         return userId
     }
     
     func getUserRole() -> String? {
         let role = userDefaults.string(forKey: Keys.userRole)
-        print("🎭 getUserRole() -> \(role ?? "NULL")")
+        // Removed excessive logging - only log when debugging is needed
+        // print("🎭 getUserRole() -> \(role ?? "NULL")")
         return role
     }
     
     func getUserName() -> String? {
         let name = userDefaults.string(forKey: Keys.userName)
-        print("📝 getUserName() -> \(name ?? "NULL")")
+        // Removed excessive logging - only log when debugging is needed
+        // print("📝 getUserName() -> \(name ?? "NULL")")
         return name
     }
     
     func getUserEmail() -> String? {
         let email = userDefaults.string(forKey: Keys.userEmail)
-        print("📧 getUserEmail() -> \(email ?? "NULL")")
+        // Removed excessive logging - only log when debugging is needed
+        // print("📧 getUserEmail() -> \(email ?? "NULL")")
         return email
+    }
+    
+    func getUserProfilePhoto() -> String? {
+        return userDefaults.string(forKey: Keys.profilePhotoUrl)
     }
     
     // MARK: - Check Login Status
     func isLoggedIn() -> Bool {
         let isLogged = getAccessToken() != nil
-        print("🔐 isLoggedIn() -> \(isLogged)")
+        // Removed excessive logging - only log when debugging is needed
+        // print("🔐 isLoggedIn() -> \(isLogged)")
         return isLogged
     }
     
@@ -110,6 +127,7 @@ class TokenManager {
         userDefaults.removeObject(forKey: Keys.userRole)
         userDefaults.removeObject(forKey: Keys.userName)
         userDefaults.removeObject(forKey: Keys.userEmail)
+        userDefaults.removeObject(forKey: Keys.profilePhotoUrl)
         
         userDefaults.synchronize()
         
@@ -136,6 +154,7 @@ class TokenManager {
         print("Role: \(getUserRole() ?? "NULL")")
         print("Name: \(getUserName() ?? "NULL")")
         print("Email: \(getUserEmail() ?? "NULL")")
+        print("ProfilePhoto: \(getUserProfilePhoto() ?? "NULL")")
         print("==========================================")
     }
 }

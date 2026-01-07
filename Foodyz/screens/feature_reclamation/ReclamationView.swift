@@ -7,6 +7,7 @@ struct ReclamationView: View {
     let complaintTypes: [String]
     let commandeConcernees: [String]
     var onSubmit: (String, String, String, [UIImage]) -> Void = { _, _, _, _ in }
+    @Environment(\.dismiss) private var dismiss
     
     @State private var restaurant = ""
     @State private var complaintType = ""
@@ -79,6 +80,7 @@ struct ReclamationView: View {
             }
             .background(Color.white)
             .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Reclamation")
@@ -86,7 +88,9 @@ struct ReclamationView: View {
                         .fontWeight(.semibold)
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {}) {
+                    Button(action: {
+                        dismiss()
+                    }) {
                         Image(systemName: "chevron.left")
                             .foregroundColor(BrandColors.TextPrimary)
                     }

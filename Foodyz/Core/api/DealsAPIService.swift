@@ -11,13 +11,21 @@ class DealsAPIService {
     private init() {}
     
     // MARK: - Helper Method
-    private func createRequest(url: URL, method: String, body: Data? = nil) -> URLRequest {
+    private func createRequest(url: URL, method: String, body: Data? = nil, requiresAuth: Bool = true) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 60  // 60 secondes de timeout
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        
+        // Add authentication token if required
+        if requiresAuth, let accessToken = TokenManager.shared.getAccessToken() {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            print("🔑 Authorization token added to request")
+        } else if requiresAuth {
+            print("⚠️ No access token available for authenticated request")
+        }
         
         if let body = body {
             request.httpBody = body
@@ -103,6 +111,12 @@ class DealsAPIService {
         }
         
         let body = try JSONEncoder().encode(dto)
+        
+        // Log request body for debugging
+        if let bodyString = String(data: body, encoding: .utf8) {
+            print("📤 POST Request Body: \(bodyString)")
+        }
+        
         let request = createRequest(url: url, method: "POST", body: body)
         
         do {
@@ -123,9 +137,44 @@ class DealsAPIService {
                 throw URLError(.badServerResponse)
             }
             
-            let deal = try JSONDecoder().decode(Deal.self, from: data)
-            print("✅ Deal créé: \(deal.restaurantName)")
-            return deal
+            // Log the raw response for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("📥 POST Response Body: \(responseString)")
+            } else {
+                print("📥 POST Response Body: (empty or not UTF-8)")
+            }
+            
+            // Check if data is empty
+            guard !data.isEmpty else {
+                print("⚠️ Response body is empty but status is \(httpResponse.statusCode)")
+                // If empty but success, we might need to handle this differently
+                // For now, throw an error that can be handled upstream
+                throw NSError(domain: "DealsAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "Response body is empty"])
+            }
+            
+            // Try to decode as Deal directly
+            do {
+                let deal = try JSONDecoder().decode(Deal.self, from: data)
+                print("✅ Deal créé: \(deal.restaurantName)")
+                return deal
+            } catch let decodingError {
+                // If direct decoding fails, try wrapped format
+                print("⚠️ Direct decoding failed: \(decodingError)")
+                
+                // Try wrapped format: { data: Deal } or { success: true, data: Deal }
+                if let wrappedDeal = try? JSONDecoder().decode(ApiResponse<Deal>.self, from: data),
+                   let deal = wrappedDeal.data {
+                    print("✅ Deal créé (wrapped): \(deal.restaurantName)")
+                    return deal
+                }
+                
+                // If all decoding fails, log and throw
+                print("❌ Erreur de décodage: \(decodingError)")
+                if let jsonError = decodingError as? DecodingError {
+                    print("   Details: \(jsonError)")
+                }
+                throw decodingError
+            }
         } catch {
             print("❌ Erreur createDeal: \(error.localizedDescription)")
             throw error

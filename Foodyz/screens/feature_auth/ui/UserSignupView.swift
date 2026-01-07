@@ -14,141 +14,161 @@ struct UserSignupView: View {
     @State private var avatarPreview: UIImage?
     @State private var avatarUploadData: Data?
 
+    var onNext: ((AuthViewModel) -> Void)? = nil
     var onFinishSignup: (() -> Void)? = nil
 
     var body: some View {
-        let gradient = LinearGradient(
-            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        
-        ZStack {
-            // Full screen gradient background
-            gradient
-                .ignoresSafeArea(.all)
-            
-        ScrollView {
-            VStack(spacing: 20) {
-                // MARK: Header
-                VStack(spacing: 8) {
-                    Text("Create Your Account")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color(hex: 0x6B7280))
+        ZStack(alignment: .top) {
+            // MARK: - Top Background Color
+            Color(hex: 0xFFFBEA)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // MARK: - Top Illustration Section
+                VStack {
+                    Spacer()
+                    Image("auth_signup_illustration")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 220)
+                    Spacer()
+                }
+                .frame(height: UIScreen.main.bounds.height * 0.32)
+                .frame(maxWidth: .infinity)
+                
+                // MARK: - Bottom Content Section (White Container)
+                ZStack {
+                    Color.white
+                        .clipShape(RoundedCorner(radius: 30, corners: [.topLeft, .topRight]))
+                        .ignoresSafeArea(edges: .bottom)
+                        .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: -5)
                     
-                    Text("Sign up to start your foodie journey")
-                        .font(.body)
-                        .foregroundColor(Color(hex: 0x6B7280))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 40)
-
-                // MARK: Avatar Picker
-                PhotosPicker(selection: $avatarItem, matching: .images, photoLibrary: .shared()) {
-                    HStack(spacing: 16) {
-                        ZStack {
-                            if let avatarPreview {
-                                Image(uiImage: avatarPreview)
-                                    .resizable()
-                                    .scaledToFill()
-                            } else {
-                                Image(systemName: "camera.fill")
-                                    .font(.system(size: 22, weight: .medium))
-                                    .foregroundColor(Color(hex: 0x6B7280))
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 25) {
+                            // Handle bar indicator
+                            Capsule()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 40, height: 4)
+                                .padding(.top, 15)
+                            
+                            // Text Header
+                            VStack(spacing: 8) {
+                                Text("Create Account")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(Color(hex: 0x1E293B)) // Dark slate
+                                
+                                Text("Enter your personal details")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.gray)
                             }
-                        }
-                        .frame(width: 64, height: 64)
-                        .background(Color(hex: 0xF3F4F6))
-                        .clipShape(Circle())
+                            .padding(.top, 5)
+                            
+                            // Form Fields
+                            VStack(spacing: 16) {
+                                // Full Name
+                                CustomTextField(
+                                    icon: "person.fill",
+                                    placeholder: "Full Name",
+                                    text: $fullName,
+                                    iconColor: Color(hex: 0xFAB005) // Yellow
+                                )
+                                
+                                // Email
+                                CustomTextField(
+                                    icon: "envelope.fill",
+                                    placeholder: "Email",
+                                    text: $viewModel.email,
+                                    keyboardType: .emailAddress,
+                                    iconColor: Color(hex: 0xFAB005)
+                                )
+                                
+                                // Password
+                                CustomSecureField(
+                                    icon: "lock.fill",
+                                    placeholder: "Password",
+                                    text: $viewModel.password,
+                                    showPassword: $showPassword,
+                                    iconColor: Color(hex: 0xFAB005)
+                                )
+                                
+                                // Confirm Password
+                                CustomSecureField(
+                                    icon: "lock.fill",
+                                    placeholder: "Confirm Password",
+                                    text: $confirmPassword,
+                                    showPassword: $showConfirmPassword,
+                                    iconColor: Color(hex: 0xFAB005)
+                                )
+                            }
+                            .padding(.horizontal, 24)
+                            
+                            // Error Message
+                            if let error = viewModel.errorMessage {
+                                Text(error)
+                                    .foregroundColor(.red)
+                                    .font(.system(size: 14))
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 24)
+                            }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Add profile photo")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(Color(hex: 0x111827))
-                            Text("Optional, but it helps professionals recognize you.")
-                                .font(.footnote)
-                                .foregroundColor(.gray)
-                        }
-
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color.white)
-                    .cornerRadius(18)
-                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 4)
-                }
-                .onChange(of: avatarItem) { newValue in
-                    Task { await updateAvatarSelection(with: newValue) }
-                }
-
-                // MARK: Full Name
-                CustomTextField(icon: "person.fill",
-                                placeholder: "Full Name",
-                                text: $fullName)
-
-                // MARK: Email
-                CustomTextField(icon: "envelope.fill",
-                                placeholder: "Email Address",
-                                text: $viewModel.email,
-                                keyboardType: .emailAddress)
-
-                // MARK: Passwords
-                CustomSecureField(icon: "lock.fill",
-                                  placeholder: "Password",
-                                  text: $viewModel.password,
-                                  showPassword: $showPassword)
-
-                CustomSecureField(icon: "lock.fill",
-                                  placeholder: "Confirm Password",
-                                  text: $confirmPassword,
-                                  showPassword: $showConfirmPassword)
-
-                // MARK: Optional Contact Info
-                CustomTextField(icon: "phone.fill",
-                                placeholder: "Phone Number",
-                                text: $phone)
-                CustomTextField(icon: "house.fill",
-                                placeholder: "Address",
-                                text: $address)
-
-                // MARK: Error Message
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 4)
-                }
-
-                // MARK: Signup Button
-                Button(action: signupAction) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(
-                                LinearGradient(colors: [Color(hex: 0xFFE15A), Color(hex: 0xF59E0B)],
-                                               startPoint: .leading,
-                                               endPoint: .trailing)
-                            )
+                            // Next (Signup) Button
+                            Button(action: signupAction) {
+                                if viewModel.isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Text("Next")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
                             .frame(height: 56)
+                            .background(
+                                LinearGradient(colors: [Color(hex: 0xFFD43B), Color(hex: 0xFAB005)],
+                                               startPoint: .top,
+                                               endPoint: .bottom)
+                            )
+                            .cornerRadius(16)
+                            .padding(.horizontal, 24)
+                            .shadow(color: Color(hex: 0xFAB005).opacity(0.3), radius: 10, x: 0, y: 5)
+                            .disabled(viewModel.isLoading)
+                            
+                            // Or divider
+                            HStack {
+                                Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
+                                Text("or")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal, 10)
+                                Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
+                            }
+                            .padding(.horizontal, 24)
+                            
+                            // Already have an account?
+                            HStack(spacing: 4) {
+                                Text("Already have an account?")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                Button(action: {
+                                    onFinishSignup?()
+                                }) {
+                                    Text("Login")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(Color(hex: 0xF59E0B))
+                                }
+                            }
+                            .padding(.bottom, 40)
+                            
+                        } // End VStack (Scroll Content)
+                    } // End ScrollView
+                } // End ZStack (White Container)
+            } // End Main VStack
+        } // End Root ZStack
+        .navigationBarBackButtonHidden(true)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
 
-                        if viewModel.isLoading {
-                            ProgressView().tint(.white)
-                        } else {
-                            Text("Create Account")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-                .disabled(viewModel.isLoading)
-                .padding(.top, 20)
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
-        }
-        }
     }
 
     // MARK: Signup Action
@@ -160,8 +180,6 @@ struct UserSignupView: View {
         let cleanEmail = viewModel.email.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanPassword = viewModel.password.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanConfirmPassword = confirmPassword.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cleanAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // 1. Validate required fields
         guard !cleanFullName.isEmpty,
@@ -175,24 +193,12 @@ struct UserSignupView: View {
             viewModel.errorMessage = "Passwords do not match."
             return
         }
-
-        let dataURI = avatarUploadData?.dataURI()
-
-        let signupData = SignupRequest(
-            username: fullName,
-            email: viewModel.email,
-            password: viewModel.password,
-            phone: phone.isEmpty ? nil : phone,
-            address: address.isEmpty ? nil : address,
-            avatarUrl: dataURI
-        )
-
-        Task {
-            await viewModel.signup(userData: signupData)
-            if viewModel.errorMessage == nil {
-                onFinishSignup?()
-            }
-        }
+        
+        // Update viewModel state before navigating
+        viewModel.fullName = cleanFullName
+        
+        // Navigate to next step
+        onNext?(viewModel)
     }
 }
 

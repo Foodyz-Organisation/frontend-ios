@@ -119,29 +119,28 @@ class PostsViewModel: ObservableObject {
         }
     }
     
+    /// Fetch personalized posts (Cosign Formulary)
+    /// Backend returns posts ordered by user preferences based on interactions
+    /// No manual sorting needed - backend handles prioritization
     func fetchPosts() async {
         isLoading = true
         errorMessage = nil
         
         do {
+            // Backend returns posts already ordered by:
+            // 1. Posts from food categories user has interacted with (first)
+            // 2. Other posts (after)
+            // No need to sort manually - backend handles prioritization
             let fetchedPosts = try await PostsAPI.shared.getAllPosts()
-            // Sort by creation date (newest first)
-            posts = fetchedPosts.sorted { post1, post2 in
-                let formatter = ISO8601DateFormatter()
-                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                
-                let date1 = formatter.date(from: post1.createdAt) ?? Date.distantPast
-                let date2 = formatter.date(from: post2.createdAt) ?? Date.distantPast
-                
-                return date1 > date2
-            }
+            posts = fetchedPosts
+            print("✅ [PostsViewModel] Fetched \(fetchedPosts.count) personalized posts")
         } catch {
             if let postsError = error as? PostsError {
                 errorMessage = postsError.localizedDescription
             } else {
                 errorMessage = error.localizedDescription
             }
-            print("Error fetching posts: \(error)")
+            print("❌ [PostsViewModel] Error fetching posts: \(error)")
         }
         
         isLoading = false
@@ -190,267 +189,248 @@ class PostsViewModel: ObservableObject {
 struct RecipeCard: View {
     let post: Post
     @State private var isFavorite: Bool
+    @State private var isSaved: Bool
+    @State private var saveCount: Int
+    @State private var commentCount: Int
     @State private var showProfile = false
+    @State private var showShareDialog = false
+    @State private var showCommentsDrawer = false
     
     init(post: Post) {
         self.post = post
         // Initialize isFavorite from LikesManager
         _isFavorite = State(initialValue: LikesManager.shared.isLiked(postId: post.id))
+        // Initialize isSaved from SavesManager
+        _isSaved = State(initialValue: SavesManager.shared.isSaved(postId: post.id))
+        _saveCount = State(initialValue: post.saveCount)
+        _commentCount = State(initialValue: post.commentCount)
     }
     
+    private var cardWidth: CGFloat {
+        UIScreen.main.bounds.width - 40 // Substract padding (20 + 20)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // MARK: - Top: Image with Overlay
             ZStack(alignment: .topLeading) {
-                // Display actual image or thumbnail from post
+                // Image Section
                 if let imageUrl = post.fullDisplayImageUrl, let url = URL(string: imageUrl) {
-                    // If it's a video and the URL looks like a video file (no thumbnail from backend), use VideoThumbnailView
                     if post.isVideo && (imageUrl.hasSuffix(".mp4") || imageUrl.hasSuffix(".mov")) {
                         VideoThumbnailView(videoUrl: url)
-                            .frame(height: 200)
+                            .frame(width: cardWidth) // Constrain width
+                            .frame(height: 300)
                             .clipped()
-                            .cornerRadius(24, corners: [.topLeft, .topRight])
                     } else {
-                        // Try loading as image
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .success(let image):
                                 image
                                     .resizable()
-                                    .scaledToFill()
-                                    .frame(height: 200)
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: cardWidth) // Constrain width
+                                    .frame(height: 300)
                                     .clipped()
-                                    .cornerRadius(24, corners: [.topLeft, .topRight])
                             case .failure(_):
-                                // Fallback for video if image load fails
-                                if post.isVideo {
-                                    VideoThumbnailView(videoUrl: url)
-                                        .frame(height: 200)
-                                        .clipped()
-                                        .cornerRadius(24, corners: [.topLeft, .topRight])
-                                } else {
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(height: 200)
-                                        .overlay(
-                                            VStack {
-                                                Image(systemName: "exclamationmark.triangle")
-                                                    .font(.system(size: 30))
-                                                    .foregroundColor(.red)
-                                                Text("Failed to load")
-                                                    .font(.caption)
-                                                    .foregroundColor(.red)
-                                            }
-                                        )
-                                        .cornerRadius(24, corners: [.topLeft, .topRight])
-                                }
+                                Rectangle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: cardWidth)
+                                    .frame(height: 300)
+                                    .overlay(Image(systemName: "exclamationmark.triangle").foregroundColor(.red))
                             case .empty:
                                 Rectangle()
                                     .fill(Color.gray.opacity(0.2))
-                                    .frame(height: 200)
-                                    .overlay(ProgressView())
-                                    .cornerRadius(24, corners: [.topLeft, .topRight])
+                                    .frame(width: cardWidth)
+                                    .frame(height: 300)
                             @unknown default:
                                 Rectangle()
                                     .fill(Color.gray.opacity(0.3))
-                                    .frame(height: 200)
-                                    .cornerRadius(24, corners: [.topLeft, .topRight])
+                                    .frame(width: cardWidth)
+                                    .frame(height: 300)
                             }
                         }
                     }
                 } else {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(height: 200)
-                        .overlay(Text("No Image URL").foregroundColor(.white))
-                        .cornerRadius(24, corners: [.topLeft, .topRight])
+                        .frame(width: cardWidth)
+                        .frame(height: 300)
+                        .overlay(Text("No Image").foregroundColor(.white))
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    // User info badge (clickable)
-                    Button(action: {
-                        if post.owner != nil {
-                            showProfile = true
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            // User avatar
-                            if let profileUrl = post.owner?.profilePictureUrl,
-                               !profileUrl.isEmpty,
-                               let url = URL(string: profileUrl) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 24, height: 24)
-                                            .clipShape(Circle())
-                                    case .failure(_), .empty:
-                                        Circle()
-                                            .fill(Color(hex: "#F59E0B"))
-                                            .frame(width: 24, height: 24)
-                                            .overlay(
-                                                Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
-                                                    .font(.system(size: 12, weight: .bold))
-                                                    .foregroundColor(.white)
-                                            )
-                                    @unknown default:
-                                        Circle()
-                                            .fill(Color.gray)
-                                            .frame(width: 24, height: 24)
-                                    }
-                                }
-                            } else {
-                                Circle()
-                                    .fill(Color(hex: "#F59E0B"))
-                                    .frame(width: 24, height: 24)
-                                    .overlay(
-                                        Text(post.owner?.displayName.prefix(1).uppercased() ?? "U")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.white)
-                                    )
-                            }
-                            
-                            Text(post.owner?.displayName ?? "User")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(Color(hex: "#1F2937"))
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.9))
-                        .cornerRadius(12)
-                    }
-                    .padding(12)
-                    
-                    // Preparation Time Badge (if available)
-                    if let prepTime = post.preparationTime {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                            Text("\(prepTime) minutes")
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.9))
-                        .foregroundColor(Color(hex: "#1F2937"))
-                        .cornerRadius(12)
-                        .padding(.leading, 12)
+                // User Pill Overlay (Top Left)
+                HStack(spacing: 8) {
+                    if let displayName = post.owner?.displayName {
+                         // User avatar
+                         Group {
+                             if let profileUrl = post.owner?.profilePictureUrl,
+                                let url = URL(string: profileUrl) {
+                                 AsyncImage(url: url) { image in
+                                     image.resizable().aspectRatio(contentMode: .fill)
+                                 } placeholder: {
+                                     Color.gray
+                                 }
+                             } else {
+                                 Circle().fill(Color.gray)
+                             }
+                         }
+                         .frame(width: 32, height: 32)
+                         .clipShape(Circle())
+                         
+                        Text(displayName)
+                             .font(.system(size: 14, weight: .bold))
+                             .foregroundColor(Color.black)
+                    } else {
+                        // Fallback
+                        Circle().fill(Color.gray).frame(width: 32, height: 32)
+                        Text("Foodyz Chef")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(Color.black)
                     }
                 }
-                
-                // Favorite icon
-                HStack {
-                    Spacer()
-                    Button {
-                        Task {
-                            await toggleLike()
-                        }
-                    } label: {
-                        Image(systemName: isFavorite ? "heart.fill" : "heart")
-                            .foregroundColor(isFavorite ? .red : .white)
-                            .font(.system(size: 24))
-                            .padding(12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.95))
+                .clipShape(Capsule())
+                .padding(12) // Padding from the edges of the card
+                .onTapGesture {
+                    if post.owner != nil {
+                        showProfile = true
                     }
-                }
-                
-                // Video indicator or rating badge
-                VStack {
-                    Spacer()
-                    HStack {
-                        if post.isVideo {
-                            HStack(spacing: 4) {
-                                Image(systemName: "video.fill")
-                                    .font(.system(size: 12))
-                                if let duration = post.duration {
-                                    Text(formatDuration(duration))
-                                        .font(.system(size: 12, weight: .medium))
-                                }
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.7))
-                            .cornerRadius(12)
-                        } else {
-                            Label("\(post.likeCount)", systemImage: "heart.fill")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.red)
-                                .cornerRadius(12)
-                        }
-                        Spacer()
-                    }
-                    .padding(12)
                 }
             }
+            .frame(width: cardWidth) // Ensure ZStack is constrained
+            .background(Color.gray.opacity(0.1))
             
-            VStack(alignment: .leading, spacing: 8) {
-                // Title = caption (first line or truncated)
-                Text(post.caption.components(separatedBy: "\n").first ?? post.caption)
-                    .font(.system(size: 20, weight: .bold))
-                    .lineLimit(2)
-                
-                // Subtitle = time ago
-                Text(timeAgo(from: post.createdAt))
-                    .font(.system(size: 14))
-                    .foregroundColor(Color.gray)
-                
-                // Tags = interaction counts
-                HStack(spacing: 8) {
-                    Text("❤️ \(post.likeCount)")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color(hex: "#E5E7EB"))
-                        .cornerRadius(10)
+            // MARK: - Bottom: Actions & Details
+            VStack(alignment: .leading, spacing: 10) {
+                // Action Icons Row
+                HStack(spacing: 20) {
+                    // Like Button
+                    Button {
+                        Task { await toggleLike() }
+                    } label: {
+                        Image(systemName: isFavorite ? "heart.fill" : "heart")
+                            .font(.system(size: 24))
+                            .foregroundColor(isFavorite ? Color(hex: "#F59E0B") : .black)
+                    }
                     
-                    Text("💬 \(post.commentCount)")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color(hex: "#E5E7EB"))
-                        .cornerRadius(10)
+                    // Comment Button
+                    Button(action: {
+                        showCommentsDrawer = true
+                    }) {
+                        Image(systemName: "bubble.right")
+                            .font(.system(size: 22))
+                            .foregroundColor(.black)
+                    }
                     
-                    if post.isVideo {
-                        Text("👁️ \(formatCount(post.viewsCount))")
-                            .font(.system(size: 12, weight: .medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color(hex: "#E5E7EB"))
-                            .cornerRadius(10)
+                    // Share Button
+                    Button(action: {
+                        showShareDialog = true
+                    }) {
+                        Image(systemName: "paperplane")
+                            .font(.system(size: 22))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Spacer()
+                    
+                    // Bookmark Button
+                    Button(action: {
+                        Task { await toggleSave() }
+                    }) {
+                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            .font(.system(size: 22))
+                            .foregroundColor(isSaved ? Color(hex: "#F59E0B") : .black)
                     }
                 }
+                .padding(.top, 4)
                 
-                HStack {
-                    // Price (if available)
-                    if let price = post.price {
-                        Text("\(price, specifier: "%.1f") TND")
-                            .font(.system(size: 18, weight: .bold))
-                    }
-                    Spacer()
-                    HStack(spacing: 16) {
-                        Image(systemName: "message")
-                        Image(systemName: "square.and.arrow.up")
-                        Image(systemName: "star")
-                    }
-                    .font(.system(size: 20))
-                    .foregroundColor(Color.gray)
+                // Likes Count
+                Text("\(post.likeCount) likes")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.black)
+                
+                // Comment Count (tappable)
+                Button(action: {
+                    showCommentsDrawer = true
+                }) {
+                    Text("\(commentCount) comments")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Save Count (if saved)
+                if saveCount > 0 {
+                    Text("\(saveCount) saves")
+                        .font(.system(size: 13))
+                        .foregroundColor(.gray)
+                }
+                
+                // Caption / Description
+                if !post.caption.isEmpty {
+                    Text(post.caption)
+                        .font(.system(size: 15))
+                        .foregroundColor(.black)
+                        .lineLimit(2)
                 }
             }
             .padding(16)
         }
+        .frame(width: cardWidth) // Fix the main card width
         .background(Color.white)
-        .cornerRadius(24)
-        .shadow(radius: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 24))
+        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
         .navigationDestination(isPresented: $showProfile) {
             if let userId = post.owner?.id {
                 UserProfileView(userId: userId)
             }
         }
+        .sheet(isPresented: $showShareDialog) {
+            SharePostDialog(
+                postId: post.id,
+                onDismiss: { showShareDialog = false },
+                onShareSuccess: {
+                    // Optionally show success message
+                }
+            )
+        }
+        .sheet(isPresented: $showCommentsDrawer) {
+            CommentsDrawer(
+                postId: post.id,
+                postCaption: post.caption,
+                likeCount: post.likeCount,
+                commentCount: commentCount,
+                isPresented: $showCommentsDrawer
+            )
+            .presentationDetents([.large, .medium])
+            .presentationDragIndicator(.visible)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshPostCommentCount"))) { notification in
+                if let userInfo = notification.userInfo,
+                   let refreshedPostId = userInfo["postId"] as? String,
+                   refreshedPostId == post.id {
+                    // Refresh comment count
+                    Task {
+                        await refreshCommentCount()
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Helper Functions
+    
+    private func refreshCommentCount() async {
+        do {
+            let updatedPost = try await PostsAPI.shared.getPost(id: post.id)
+            await MainActor.run {
+                commentCount = updatedPost.commentCount
+            }
+        } catch {
+            print("Error refreshing comment count: \(error)")
+        }
+    }
     
     private func timeAgo(from dateString: String) -> String {
         let formatter = ISO8601DateFormatter()
@@ -537,6 +517,45 @@ struct RecipeCard: View {
             } else {
                 print("❌ Failed to toggle like: \(error)")
             }
+        }
+    }
+    
+    private func toggleSave() async {
+        // Optimistically update UI
+        let previousSavedState = isSaved
+        isSaved.toggle()
+        
+        if isSaved {
+            saveCount += 1
+            SavesManager.shared.addSave(postId: post.id)
+        } else {
+            saveCount = max(0, saveCount - 1)
+            SavesManager.shared.removeSave(postId: post.id)
+        }
+        
+        do {
+            if previousSavedState {
+                // Unsave
+                let updatedPost = try await PostsAPI.shared.unsavePost(postId: post.id)
+                saveCount = updatedPost.saveCount
+            } else {
+                // Save
+                let updatedPost = try await PostsAPI.shared.savePost(postId: post.id)
+                saveCount = updatedPost.saveCount
+            }
+            // Refresh the posts feed to show updated save count
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+        } catch {
+            // Revert optimistic update
+            isSaved = previousSavedState
+            if previousSavedState {
+                saveCount += 1
+                SavesManager.shared.addSave(postId: post.id)
+            } else {
+                saveCount = max(0, saveCount - 1)
+                SavesManager.shared.removeSave(postId: post.id)
+            }
+            print("❌ Failed to toggle save: \(error)")
         }
     }
 }

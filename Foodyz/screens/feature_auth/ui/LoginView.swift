@@ -1,9 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct LoginView: View {
     @StateObject private var viewModel = AuthViewModel()
     @State private var showPassword = false
     @State private var showError = false
+    @State private var showDiagnostics = false
+    @State private var diagnosticsMessage = ""
     @State private var email = ""
     @State private var password = ""
     @State private var rememberMe = false
@@ -15,227 +18,222 @@ struct LoginView: View {
     var onLoginSuccess: (AppUserRole) -> Void
 
     var body: some View {
-        // Define the gradient once
-        let contentGradient = LinearGradient(
-            colors: [Color(hex: 0xFFFBEA), Color(hex: 0xFFF8D6), Color(hex: 0xFFF6C1)],
-            startPoint: .top,
-            endPoint: .bottom
-        )
+        ZStack(alignment: .top) {
+            // MARK: - Background Color
+            Color(hex: 0xFFFBEA) // Cream background for the top part
+                .ignoresSafeArea()
 
-        // Full screen gradient background with scrollable content
-        ZStack {
-            // Full screen gradient background - fills entire screen including edges
-            contentGradient
-                .ignoresSafeArea(.all, edges: .all)
+            VStack(spacing: 0) {
+                // MARK: - Top Illustration Section
+                VStack {
+                    Spacer()
+                    Image("auth_login_illustration")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 250) // Increased height to match "full screen" feel in top section
+                    Spacer()
+                }
+                .frame(height: UIScreen.main.bounds.height * 0.38)
+                .frame(maxWidth: .infinity)
                 
-            // Scrollable Content Area
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Logo
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color(hex: 0xFFD54F), Color(hex: 0xFFA726)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 100, height: 100)
-                            .shadow(color: .black.opacity(0.15), radius: 10, x: 0, y: 5)
-                        
-                        Image(systemName: "fork.knife")
-                            .font(.system(size: 45))
-                            .foregroundColor(.white)
-                    }
-                    .padding(.top, 60)
-                    .padding(.bottom, 20)
+                // MARK: - Bottom Content Section (White Container)
+                ZStack {
+                    Color.white
+                        .clipShape(RoundedCorner(radius: 30, corners: [.topLeft, .topRight]))
+                        .ignoresSafeArea(edges: .bottom)
+                        .shadow(color: Color.black.opacity(0.1), radius: 20, x: 0, y: -5)
                     
-                    // Welcome Text
-                    Text("Welcome Back")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color(hex: 0xD97706))
-                    
-                    Text("Login to continue your food journey")
-                        .font(.system(size: 16))
-                        .foregroundColor(.gray)
-                        .padding(.bottom, 20)
-                    
-                    // MARK: Email
-                    CustomTextField(icon: "envelope.fill",
-                                    placeholder: "Email",
-                                    text: $viewModel.email)
-                        .padding(.horizontal, 24)
-
-                    // MARK: Password
-                    CustomSecureField(icon: "lock.fill",
-                                        placeholder: "Password",
-                                        text: $viewModel.password,
-                                        showPassword: $showPassword)
-                        .padding(.horizontal, 24)
-
-                    // MARK: Forgot Password
-                    HStack {
-                        Spacer()
-                        Button(action: { onForgotPassword?() }) {
-                            Text("Forgot Password?")
-                                .foregroundColor(Color(hex: 0xF59E0B))
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 4)
-
-                    // MARK: Error
-                    if let error = viewModel.errorMessage {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .font(.body)
-                            .padding(.top, 4)
-                            .padding(.horizontal, 24)
-                    }
-                    
-                    // Remember Me
-                    HStack {
-                        Button(action: {
-                            rememberMe.toggle()
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: rememberMe ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(rememberMe ? Color(hex: 0xD97706) : .gray)
-                                Text("Remember Me")
-                                    .font(.system(size: 14))
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 25) {
+                            // Handle bar indicator
+                            Capsule()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 40, height: 4)
+                                .padding(.top, 15)
+                            
+                            // Text Header
+                            VStack(spacing: 8) {
+                                Text("Welcome Back")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(Color(hex: 0xB45309)) // Brownish gold
+                                
+                                Text("Login to continue your food journey")
+                                    .font(.system(size: 16))
                                     .foregroundColor(.gray)
                             }
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 5)
-                    
-                    // Login Button
-                    Button(action: loginAction) {
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        } else {
-                            Text("Login")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(hex: 0xFFC107), Color(hex: 0xFFB300)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(12)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 10)
-                    .disabled(viewModel.isLoading)
-                    
-                    // Or continue with
-                    Text("Or continue with")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                        .padding(.top, 10)
-                    
-                    // Social Login Buttons
-                    HStack(spacing: 15) {
-                        // Google Button
-                        Button(action: {}) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "globe")
-                                    .foregroundColor(Color(hex: 0x4285F4))
-                                Text("Google")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.black)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                            )
-                            .cornerRadius(12)
-                        }
+                            .padding(.top, 5)
                             
-                        // Facebook Button
-                        Button(action: {}) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "globe")
-                                    .foregroundColor(Color(hex: 0x1877F2))
-                                Text("Facebook")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.black)
+                            // Form Fields
+                            VStack(spacing: 20) {
+                                // Email Field
+                                CustomTextField(
+                                    icon: "envelope.fill",
+                                    placeholder: "Email",
+                                    text: $viewModel.email,
+                                    iconColor: Color(hex: 0xF97316) // Orange
+                                )
+                                
+                                // Password Field
+                                CustomSecureField(
+                                    icon: "lock.fill",
+                                    placeholder: "Password",
+                                    text: $viewModel.password,
+                                    showPassword: $showPassword,
+                                    iconColor: Color(hex: 0xFAB005) // Yellow
+                                )
+                                
+                                // Remember Me & Forgot Password
+                                HStack {
+                                    Button(action: { rememberMe.toggle() }) {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: rememberMe ? "checkmark.square.fill" : "square")
+                                                .foregroundColor(rememberMe ? Color(hex: 0xF59E0B) : .gray)
+                                            Text("Remember Me")
+                                                .font(.system(size: 14))
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: { onForgotPassword?() }) {
+                                        Text("Forgot Password?")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(Color(hex: 0xB45309))
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            
+                            // Login Button
+                            Button(action: loginAction) {
+                                if viewModel.isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Text("Login")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            .frame(height: 56)
+                            .background(
+                                LinearGradient(colors: [Color(hex: 0xFFD43B), Color(hex: 0xFAB005)],
+                                               startPoint: .top,
+                                               endPoint: .bottom)
                             )
-                            .cornerRadius(12)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    
-                    // Register Section
-                    HStack(spacing: 4) {
-                        Text("Don't have an account?")
-                            .font(.system(size: 15))
-                            .foregroundColor(.gray)
-                        Button(action: {
-                            onSignup?()
-                        }) {
-                            Text("Register Now")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(Color(hex: 0xD97706))
-                        }
-                    }
-                    .padding(.top, 15)
-                
-                    Text("Create an account to be able to order/reserve/get a delivery")
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                        .padding(.bottom, 40)
-                    
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 40)
-            } // End ScrollView
-            .ignoresSafeArea(.all, edges: .all)
-        } // End ZStack
-        .background(contentGradient.ignoresSafeArea(.all))
-        // MARK: - Navigation and Overlays
+                            .cornerRadius(16)
+                            .padding(.horizontal, 24)
+                            .shadow(color: Color(hex: 0xFAB005).opacity(0.3), radius: 10, x: 0, y: 5)
+                            .disabled(viewModel.isLoading)
+                            
+                            // Or continue with
+                            HStack {
+                                Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
+                                Text("Or continue with")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal, 10)
+                                Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
+                            }
+                            .padding(.horizontal, 24)
+                            
+                            // Social Buttons
+                            VStack(spacing: 12) {
+                                Button(action: {
+                                    Task {
+                                        await viewModel.googleLogin { role in
+                                            onLoginSuccess(role)
+                                        }
+                                    }
+                                }) {
+                                    HStack(spacing: 12) {
+                                        if UIImage(named: "google_icon") != nil {
+                                            Image("google_icon")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 24, height: 24)
+                                        } else {
+                                            Image(systemName: "g.circle.fill")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 24, height: 24)
+                                                .foregroundColor(.blue)
+                                        }
+                                        
+                                        Text("Google")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.black.opacity(0.8))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 56)
+                                    .background(Color.white)
+                                    .cornerRadius(16)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            
+                            // Register
+                            HStack(spacing: 4) {
+                                Text("Don't have an account?")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                Button(action: { onSignup?() }) {
+                                    Text("Register Now")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(Color(hex: 0xF59E0B))
+                                }
+                            }
+                            .padding(.bottom, 30)
+                            
+                        } // End VStack (Scroll Content)
+                    } // End ScrollView
+                } // End ZStack (White Container)
+            } // End Main VStack
+        } // End Root ZStack
+
+        .ignoresSafeArea(.keyboard, edges: .bottom) // Prevent keyboard from pushing everything up awkwardly
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(.hidden, for: .navigationBar)
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
+            Button("Diagnose Connection") {
+                diagnoseConnection()
+            }
         } message: {
-            Text(viewModel.errorMessage ?? "")
+            VStack(alignment: .leading, spacing: 8) {
+                Text(viewModel.errorMessage ?? "")
+                if let error = viewModel.errorMessage, error.contains("offline") || error.contains("Local network") {
+                    Text("\n💡 Tap 'Diagnose Connection' to check network settings.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .alert("Network Diagnostics", isPresented: $showDiagnostics) {
+            Button("OK", role: .cancel) {}
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+        } message: {
+            Text(diagnosticsMessage)
         }
     }
     
-    // ... (loginAction and DebugPanelView remain unchanged)
+    // ... (loginAction implementation)
     private func loginAction() {
         // 🔍 DEBUG: Log current state before login
         print("🔍 ========== LOGIN DEBUG ==========")
-        print("🔍 ViewModel Email: '\(viewModel.email)' (length: \(viewModel.email.count))")
-        print("🔍 ViewModel Password: '\(String(repeating: "*", count: viewModel.password.count))' (length: \(viewModel.password.count))")
-        print("🔍 Email isEmpty: \(viewModel.email.isEmpty)")
-        print("🔍 Password isEmpty: \(viewModel.password.isEmpty)")
-        print("🔍 Email trimmed: '\(viewModel.email.trimmingCharacters(in: .whitespacesAndNewlines))'")
-        print("🔍 Password trimmed length: \(viewModel.password.trimmingCharacters(in: .whitespacesAndNewlines).count)")
-        print("🔍 ==================================")
+        print("🔍 Email: '\(viewModel.email)'")
+        print("🔍 Password length: \(viewModel.password.count)")
             
         Task {
             await viewModel.login { role in
@@ -243,93 +241,93 @@ struct LoginView: View {
             }
         }
     }
-}
-
-// MARK: - Debug Panel
-struct DebugPanelView: View {
-    let email: String
-    let passwordLength: Int
-    let isLoading: Bool
-    let errorMessage: String?
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("🔍 DEBUG INFO")
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            Divider()
-                .background(Color.white.opacity(0.5))
-            
-            HStack {
-                Text("Email:")
-                    .foregroundColor(.white)
-                Spacer()
-                Text("'\(email)' (\(email.count) chars)")
-                    .foregroundColor(email.isEmpty ? .red : .green)
-                    .font(.system(.caption, design: .monospaced))
-            }
-            
-            HStack {
-                Text("Password:")
-                    .foregroundColor(.white)
-                Spacer()
-                Text("\(passwordLength) chars")
-                    .foregroundColor(passwordLength == 0 ? .red : .green)
-                    .font(.system(.caption, design: .monospaced))
-            }
-            
-            HStack {
-                Text("Loading:")
-                    .foregroundColor(.white)
-                Spacer()
-                Text(isLoading ? "Yes" : "No")
-                    .foregroundColor(isLoading ? .yellow : .white)
-            }
-            
-            if let error = errorMessage {
-                HStack {
-                    Text("Error:")
-                        .foregroundColor(.white)
-                    Spacer()
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.system(.caption))
-                        .lineLimit(2)
+    private func diagnoseConnection() {
+        print("🔍 [LoginView] Starting network diagnostics...")
+        
+        // Get diagnostics info
+        let info = NetworkDiagnostics.shared.getDiagnosticsInfo()
+        print(info)
+        
+        // Test connection
+        NetworkDiagnostics.shared.testServerConnection { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let diagnostic):
+                    print(diagnostic.summary)
+                    self.diagnosticsMessage = diagnostic.summary
+                    
+                    if diagnostic.isLocalNetworkBlocked {
+                        self.diagnosticsMessage += "\n\n⚠️ LOCAL NETWORK PERMISSION REQUIRED\n\n"
+                        self.diagnosticsMessage += "To fix this:\n"
+                        self.diagnosticsMessage += "1. Open Settings app\n"
+                        self.diagnosticsMessage += "2. Go to Privacy & Security\n"
+                        self.diagnosticsMessage += "3. Tap Local Network\n"
+                        self.diagnosticsMessage += "4. Find 'Foodyz' and toggle it ON\n"
+                        self.diagnosticsMessage += "\nOr tap 'Open Settings' below."
+                    } else if !diagnostic.success {
+                        self.diagnosticsMessage += "\n\n⚠️ SERVER CONNECTION ISSUE\n\n"
+                        self.diagnosticsMessage += "Please check:\n"
+                        self.diagnosticsMessage += "1. Backend server is running on port 3000\n"
+                        self.diagnosticsMessage += "2. Mac IP address is correct: \(BaseUrlProvider.shared.baseURL)\n"
+                        self.diagnosticsMessage += "3. iPhone and Mac are on the same Wi-Fi network\n"
+                    }
+                    
+                case .failure(let error):
+                    print("❌ Diagnostic failed: \(error.localizedDescription)")
+                    self.diagnosticsMessage = "❌ Diagnostic Error: \(error.localizedDescription)\n\n"
+                    self.diagnosticsMessage += "Base URL: \(BaseUrlProvider.shared.baseURL)\n"
+                    self.diagnosticsMessage += "\nPlease check:\n"
+                    self.diagnosticsMessage += "1. Enable Local Network permission in Settings\n"
+                    self.diagnosticsMessage += "2. Verify server is running\n"
+                    self.diagnosticsMessage += "3. Check IP address is correct"
                 }
+                
+                self.showDiagnostics = true
             }
         }
-        .padding()
-        .background(Color.black.opacity(0.8))
-        .cornerRadius(12)
-        .shadow(radius: 10)
     }
 }
 
-// NOTE: Ensure this struct is available in your project
-struct SocialButton: View {
-    let iconName: String
+// MARK: - Helper Views
+
+struct SocialLoginButton: View {
+    let imageName: String
     let text: String
+    let action: () -> Void
     
     var body: some View {
-        HStack {
-            // Placeholder for Google/Facebook icons (replace with actual Image("iconName"))
-            Image(systemName: "globe")
-                .resizable()
-                .frame(width: 20, height: 20)
-                .foregroundColor(.textPrimary)
-            
-            Text(text)
-                .foregroundColor(.textPrimary)
-                .fontWeight(.medium)
+        Button(action: action) {
+            HStack {
+                // Determine if we use system image or asset
+                if UIImage(named: imageName) != nil {
+                     Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                } else {
+                    // Fallback to stylized G text or globe
+                    Image(systemName: "globe")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                        .foregroundColor(Color(hex: 0xEA4335)) // Google Red-ish
+                }
+                
+                Text(text)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.black)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(Color.white)
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
         }
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
-        .background(Color.gray100)
-        .cornerRadius(18)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.gray300, lineWidth: 0.5)
-        )
     }
 }
+
+

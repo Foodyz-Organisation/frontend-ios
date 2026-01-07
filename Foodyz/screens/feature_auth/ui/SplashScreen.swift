@@ -25,7 +25,7 @@ extension AppColor {
 
 struct SplashView: View {
     // MARK: - Properties
-    var title: String = "Foodies"
+    var title: String = "Foodyz"
     var subtitle: String = "Discover & Order"
     var logoBackgroundColor: Color = .white
     // FIX: Use .swiftUIColor to get the actual Color value.
@@ -65,11 +65,10 @@ struct SplashView: View {
                         .frame(width: 160, height: 160)
                         .shadow(color: .black.opacity(0.2), radius: 24, x: 0, y: 8)
                     
-                    Image(systemName: "fork.knife.circle.fill")
+                    Image("logo_name")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 72, height: 72)
-                        .foregroundColor(logoTint)
+                        .frame(width: 80, height: 80)
                 }
                 
                 Spacer().frame(height: 24)

@@ -12,6 +12,7 @@ enum APIError: Error {
     case badRequest // 400
     case badServerResponse(statusCode: Int)
     case decodingError(Error)
+    case encodingError(Error)
     case noData
 }
 // APIError.swift (Corrected extension)
@@ -34,6 +35,8 @@ extension APIError: LocalizedError {
             return "Server Error: Status code \(statusCode)."
         case .decodingError:
             return "Failed to read data from the server."
+        case .encodingError:
+            return "Failed to encode data for the server."
         case .noData:
             return "The server returned no data."
         }
@@ -70,7 +73,30 @@ class MenuItemApi {
                     return completion(.failure(.unauthorized))
                 case 400:
                     return completion(.failure(.badRequest))
+                case 429:
+                    // Quota exceeded - extract error message from response
+                    let errorMessage = extractErrorMessage(from: data) ?? "AI service quota exceeded. Please try again later."
+                    return completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
+                case 500:
+                    // Server error - check if it's a quota error in the response body
+                    if let errorMessage = extractErrorMessage(from: data),
+                       (errorMessage.lowercased().contains("quota") || 
+                        errorMessage.lowercased().contains("exceeded") ||
+                        errorMessage.lowercased().contains("429")) {
+                        // Treat quota errors as 429 even if backend returns 500
+                        return completion(.failure(.badServerResponse(statusCode: 429)))
+                    }
+                    return completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
                 default:
+                    // Try to extract error message from response body
+                    if let errorMessage = extractErrorMessage(from: data) {
+                        // Check if it's a quota error
+                        if errorMessage.lowercased().contains("quota") || 
+                           errorMessage.lowercased().contains("exceeded") ||
+                           httpResponse.statusCode == 429 {
+                            return completion(.failure(.badServerResponse(statusCode: 429)))
+                        }
+                    }
                     return completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
                 }
                 
@@ -96,13 +122,76 @@ class MenuItemApi {
         }
     }
     
+    // MARK: - Extract Error Message from Response
+    private func extractErrorMessage(from data: Data) -> String? {
+        guard !data.isEmpty else { return nil }
+        
+        // Try to decode as JSON error response
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            // Try common error message fields
+            if let message = json["message"] as? String {
+                return message
+            }
+            if let error = json["error"] as? String {
+                return error
+            }
+            if let error = json["error"] as? [String: Any],
+               let message = error["message"] as? String {
+                return message
+            }
+            
+            // Check for nested error details (Gemini API errors)
+            if let errorDetails = json["errorDetails"] as? [[String: Any]] {
+                for detail in errorDetails {
+                    if let violations = detail["violations"] as? [[String: Any]] {
+                        for violation in violations {
+                            if let metric = violation["quotaMetric"] as? String,
+                               metric.contains("quota") || metric.contains("429") {
+                                return "Quota exceeded"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Try to decode as string and check for quota keywords
+        if let errorString = String(data: data, encoding: .utf8) {
+            // Check if the raw string contains quota-related keywords
+            let lowercased = errorString.lowercased()
+            if lowercased.contains("quota") || 
+               lowercased.contains("exceeded") || 
+               lowercased.contains("429") ||
+               lowercased.contains("too many requests") {
+                return errorString
+            }
+            return errorString
+        }
+        
+        return nil
+    }
+    
     // --- Public methods using the original callback signature ---
     
     // MARK: - GET All (Grouped)
     func getGroupedMenu(professionalId: String, token: String, completion: @escaping (Result<[String: [MenuItemResponse]], APIError>) -> Void) {
-        guard let url = URL(string: "\(baseUrl)/menu-items/by-professional/\(professionalId)") else {
+        // Validate professionalId is not empty
+        guard !professionalId.isEmpty else {
+            print("❌ MenuItemApi: professionalId is empty")
+            return completion(.failure(.badRequest))
+        }
+        
+        // Properly encode the URL to handle special characters
+        let path = "/menu-items/by-professional/\(professionalId)"
+        guard let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(baseUrl)\(encodedPath)") else {
+            print("❌ MenuItemApi: Invalid URL for professionalId: \(professionalId)")
             return completion(.failure(.invalidURL))
         }
+        
+        print("🔍 MenuItemApi: Fetching menu for professionalId: \(professionalId)")
+        print("📍 URL: \(url.absoluteString)")
+        
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
@@ -116,6 +205,21 @@ class MenuItemApi {
         }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        handleAsyncCall(url: url, request: request, completion: completion)
+    }
+    
+    // MARK: - GET AI Suggestions
+    func getMenuItemSuggestions(itemId: String, token: String, completion: @escaping (Result<MenuSuggestionsDto, APIError>) -> Void) {
+        guard let url = URL(string: "\(baseUrl)/menu-items/\(itemId)/suggestions") else {
+            return completion(.failure(.invalidURL))
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        print("🤖 [MenuItemApi] Fetching AI suggestions for item: \(itemId)")
+        print("📍 URL: \(url.absoluteString)")
         
         handleAsyncCall(url: url, request: request, completion: completion)
     }

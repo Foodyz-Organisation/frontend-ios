@@ -2,32 +2,112 @@ import SwiftUI
 
 // MARK: - Order History Screen
 struct OrderHistoryScreen: View {
-    @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = OrderViewModel()
     
     let userId: String
     let onOrderClick: (String) -> Void
     var onReclamationClick: ((String) -> Void)? = nil // Callback for reclamation navigation
     
+    // Navigation callbacks
+    var onHomeClick: (() -> Void)? = nil
+    var onMessagesClick: (() -> Void)? = nil
+    var onOrdersClick: (() -> Void)? = nil
+    var onProfileClick: (() -> Void)? = nil
+    var onSearchClick: (() -> Void)? = nil
+    var onAddPostClick: (() -> Void)? = nil
+    var onOpenDrawer: (() -> Void)? = nil // Kept for backward compat if needed, or remove?
+    var onNavigateDrawer: ((String) -> Void)? = nil // NEW
+    @State private var showingDrawer = false
+    @State private var showNotifications = false
+    @State private var selectedTab = "orders"
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Top Bar
-            OrderHistoryTopBar(onBackClick: { dismiss() })
+        ZStack {
+            VStack(spacing: 0) {
+                // TopAppBar
+                // MARK: - Custom Top Bar
+                HStack {
+                    // Logo (Cursive text)
+                    Text("foodyz")
+                        .font(.custom("Snell Roundhand", size: 32))
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(hex: "#F59E0B")) // Yellow/Orange
+                    
+                    Spacer()
+                    
+                    // Menu Button
+                    Button(action: {
+                        withAnimation { showingDrawer = true }
+                    }) {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Color(hex: "#333333")) // HomeColors.darkGray equivalent
+                            .padding(10)
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
+                .background(Color.white)
+                
+                // Content
+                if viewModel.isLoading {
+                    LoadingOrdersView()
+                } else if viewModel.orders.isEmpty {
+                    EmptyOrdersView()
+                } else {
+                    OrdersList(
+                        orders: viewModel.orders,
+                        onOrderClick: onOrderClick,
+                        onReclamationClick: onReclamationClick
+                    )
+                }
+            }
+            // Add padding to bottom to avoid content being hidden by bottom bar
+            .padding(.bottom, 80)
             
-            // Content
-            if viewModel.isLoading {
-                LoadingOrdersView()
-            } else if viewModel.orders.isEmpty {
-                EmptyOrdersView()
-            } else {
-                OrdersList(
-                    orders: viewModel.orders,
-                    onOrderClick: onOrderClick,
-                    onReclamationClick: onReclamationClick
+            // MARK: - Floating Bottom Bar
+            VStack {
+                Spacer()
+                UserBottomBar(
+                    selectedTab: $selectedTab,
+                    onTabSelect: { tab in
+                        if tab == "home" {
+                            onHomeClick?()
+                        }
+                    },
+                    onReels: { /* Navigate to Reels */ },
+                    onTrending: { /* Navigate to Trending */ },
+                    onChat: { onMessagesClick?() },
+                    onMenu: {
+                        withAnimation { showingDrawer = true }
+                    }
                 )
+            }
+            .ignoresSafeArea(.keyboard)
+            
+            // Drawer overlay
+            if showingDrawer {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { withAnimation { showingDrawer = false } }
+                
+                DrawerView(
+                    onCloseDrawer: { withAnimation { showingDrawer = false } },
+                    navigateTo: { route in
+                        withAnimation { showingDrawer = false }
+                        onNavigateDrawer?(route)
+                    },
+                    currentRoute: "order_history"
+                )
+                .transition(.move(edge: .trailing))
+                .animation(.easeInOut, value: showingDrawer)
             }
         }
         .background(Color(hex: 0xFFF9FAFB))
+        .navigationBarBackButtonHidden(true)
         .onAppear {
             viewModel.loadOrdersByUser(userId: userId)
         }

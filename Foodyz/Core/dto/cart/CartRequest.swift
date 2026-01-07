@@ -11,13 +11,16 @@ struct AddToCartRequest: Codable {
 }
 
 // MARK: - Cart Ingredient DTO
-struct CartIngredientDto: Codable {
+struct CartIngredientDto: Codable, Equatable {
     let name: String
     let isDefault: Bool
+    let intensityType: IntensityType?
+    let intensityColor: String? // Hex color string
+    let intensityValue: Double? // 0.0 to 1.0
 }
 
 // MARK: - Cart Option DTO
-struct CartOptionDto: Codable {
+struct CartOptionDto: Codable, Equatable {
     let name: String
     let price: Double
 }

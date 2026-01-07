@@ -6,117 +6,124 @@ struct ProfessionalDrawer: View {
     var navigateTo: (String) -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             // Header
-            HStack {
-                Image(systemName: "person.circle.fill")
-                    .resizable()
-                    .frame(width: 50, height: 50)
-                    .foregroundColor(.gray)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Foodyz Pro")
-                        .font(.headline)
+            Button(action: {
+                onCloseDrawer()
+                navigateTo("profile")
+            }) {
+                HStack(spacing: 16) {
+                    Button(action: onCloseDrawer) {
+                        Image(systemName: "arrow.left")
+                            .font(.title2)
+                            .foregroundColor(.black)
+                    }
+                    
+                    Text("Menu")
+                        .font(.title2)
+                        .fontWeight(.bold)
                         .foregroundColor(.black)
-                    Text("Professional")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    
+                    Spacer()
                 }
-                
-                Spacer()
-                
-                Button(action: onCloseDrawer) {
-                    Image(systemName: "xmark")
-                        .foregroundColor(.black)
-                        .padding(8)
-                }
+                .padding(.horizontal, 20)
+                .padding(.top, 60) // Add top padding for safe area manually since we ignore safe area
+                .padding(.bottom, 20)
+                .background(Color.white)
             }
-            .padding()
-            .background(Color.white)
+            .buttonStyle(PlainButtonStyle())
             
-            Divider()
-            
-            // Menu Items
+            // Menu Items List
             ScrollView {
-                VStack(spacing: 0) {
-                    DrawerMenuItem(icon: "house.fill", title: "Home", isSelected: true) {
-                        onCloseDrawer()
-                    }
-                    
-                    DrawerMenuItem(icon: "fork.knife", title: "Menu Management") {
-                        navigateTo("menu")
-                    }
-                    
-                    DrawerMenuItem(icon: "tag.fill", title: "Deals Management") {
+                VStack(spacing: 16) {
+                    DrawerCardItem(icon: "tag.fill", title: "Deals Management", color: Color(red: 1.0, green: 0.97, blue: 0.88), iconColor: Color(red: 1.0, green: 0.63, blue: 0.0)) {
                         navigateTo("deals_management")
                     }
                     
-                    DrawerMenuItem(icon: "chart.bar.fill", title: "Analytics") {
-                        navigateTo("analytics")
-                    }
-                    
-                    DrawerMenuItem(icon: "calendar", title: "Event Management") {
-                        navigateTo("events")
-                    }
-                    
-                    DrawerMenuItem(icon: "bell.fill", title: "Notifications") {
-                        navigateTo("notifications")
-                    }
-                    
-                    DrawerMenuItem(icon: "exclamationmark.triangle.fill", title: "Reclamations") {
+                    DrawerCardItem(icon: "exclamationmark.triangle.fill", title: "Reclamations", color: Color(red: 1.0, green: 0.97, blue: 0.88), iconColor: Color(red: 1.0, green: 0.63, blue: 0.0)) {
                         navigateTo("reclamations")
                     }
                     
-                    DrawerMenuItem(icon: "gearshape.fill", title: "Settings") {
-                        navigateTo("settings")
+                    DrawerCardItem(icon: "book.fill", title: "Menu Management", color: Color(red: 1.0, green: 0.97, blue: 0.88), iconColor: Color(red: 1.0, green: 0.63, blue: 0.0)) {
+                        navigateTo("menu")
                     }
                     
-                    Divider().padding(.vertical, 8)
+                    DrawerCardItem(icon: "calendar", title: "Event Management", color: Color(red: 1.0, green: 0.97, blue: 0.88), iconColor: Color(red: 1.0, green: 0.63, blue: 0.0)) {
+                         navigateTo("events")
+                    }
                     
-                    DrawerMenuItem(icon: "rectangle.portrait.and.arrow.right", title: "Logout", color: .red) {
-                        navigateTo("logout")
+                    DrawerCardItem(icon: "bell.fill", title: "Notifications", color: .white, iconColor: .black) {
+                        navigateTo("notifications")
+                    }
+
+                    DrawerCardItem(icon: "chart.bar.fill", title: "Analytics", color: .white, iconColor: .black) {
+                         navigateTo("analytics")
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
             }
             
             Spacer()
+            
+            // Logout Button
+            Button(action: { navigateTo("logout") }) {
+                HStack {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 18))
+                    Text("Logout")
+                        .font(.system(size: 16, weight: .semibold))
+                    Spacer()
+                }
+                .foregroundColor(.red)
+                .padding()
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(12)
+            }
+            .padding(20)
+            .padding(.bottom, 30) // Bottom safe area
         }
-        .frame(width: 280)
-        .background(Color.white)
-        .shadow(color: .black.opacity(0.2), radius: 10, x: 2, y: 0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.98, green: 0.98, blue: 0.98)) // Light gray background
+        .edgesIgnoringSafeArea(.all)
     }
 }
 
-struct DrawerMenuItem: View {
+struct DrawerCardItem: View {
     let icon: String
     let title: String
-    var isSelected: Bool = false
-    var color: Color = .black
+    var color: Color
+    var iconColor: Color
     var action: () -> Void
     
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(isSelected ? Color(red: 0.99, green: 0.69, blue: 0.16) : color)
-                    .frame(width: 24)
+                // Icon Box
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(color)
+                        .frame(width: 48, height: 48)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 20))
+                        .foregroundColor(iconColor)
+                }
                 
                 Text(title)
-                    .font(.system(size: 16))
-                    .foregroundColor(isSelected ? Color(red: 0.99, green: 0.69, blue: 0.16) : color)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.black)
                 
                 Spacer()
                 
-                if isSelected {
-                    Circle()
-                        .fill(Color(red: 0.99, green: 0.69, blue: 0.16))
-                        .frame(width: 8, height: 8)
-                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14))
+                    .foregroundColor(.gray)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .background(isSelected ? Color(red: 0.99, green: 0.69, blue: 0.16).opacity(0.1) : Color.clear)
+            .padding(12)
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
     }
 }

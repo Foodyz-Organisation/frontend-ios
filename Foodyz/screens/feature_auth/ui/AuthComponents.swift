@@ -56,15 +56,24 @@ struct CustomTextField: View {
     var placeholder: String
     @Binding var text: String
     var keyboardType: UIKeyboardType = .default
+    var iconColor: Color = .gray // Default to gray
 
     var body: some View {
-        HStack {
-            Image(systemName: icon).foregroundColor(.gray)
-            TextField(placeholder, text: $text).keyboardType(keyboardType).autocapitalization(.none)
+        HStack(spacing: 15) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(iconColor)
+                .frame(width: 24)
+            
+            TextField(placeholder, text: $text)
+                .font(.system(size: 16))
+                .keyboardType(keyboardType)
+                .autocapitalization(.none)
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(.horizontal, 16)
+        .frame(height: 56)
+        .background(Color(.systemGray6).opacity(0.5))
+        .cornerRadius(16)
     }
 }
 
@@ -74,14 +83,37 @@ struct CustomSecureField: View {
     var placeholder: String
     @Binding var text: String
     @Binding var showPassword: Bool
+    var iconColor: Color = .gray // Default to gray
 
     var body: some View {
-        HStack {
-            Image(systemName: icon).foregroundColor(.gray)
-            SecureField(placeholder, text: $text)
+        HStack(spacing: 15) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(iconColor)
+                .frame(width: 24)
+            
+            if showPassword {
+                TextField(placeholder, text: $text)
+                    .font(.system(size: 16))
+                    .autocapitalization(.none)
+            } else {
+                SecureField(placeholder, text: $text)
+                    .font(.system(size: 16))
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                showPassword.toggle()
+            }) {
+                Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
+                    .foregroundColor(.gray)
+            }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding(.horizontal, 16)
+        .frame(height: 56)
+        .background(Color(.systemGray6).opacity(0.5))
+        .cornerRadius(16)
     }
 }
+

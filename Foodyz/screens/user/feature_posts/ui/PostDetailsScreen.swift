@@ -270,7 +270,16 @@ struct PostDetailsScreen: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { dismiss() }) {
+                Button(action: {
+                    // Cosign Formulary: Refresh feed when returning from post details
+                    // Backend has tracked the view and updated preferences
+                    dismiss()
+                    
+                    // Trigger feed refresh after a short delay to ensure navigation completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
+                    }
+                }) {
                     Image(systemName: "arrow.left")
                         .foregroundColor(.primary)
                 }
@@ -279,7 +288,7 @@ struct PostDetailsScreen: View {
         .fullScreenCover(isPresented: $viewModel.showFullScreenVideo) {
             if let post = viewModel.post,
                let videoUrlString = post.mediaUrls.first,
-               let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+               let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                 FullScreenVideoPlayerView(videoUrl: videoUrl, isPresented: $viewModel.showFullScreenVideo)
             }
         }
@@ -294,7 +303,17 @@ struct PostDetailsScreen: View {
         }
         .onAppear {
             Task {
+                // Cosign Formulary: Backend automatically tracks view when getPost is called with x-user-id header
+                // This updates user preferences for the post's food category
                 await viewModel.loadPost(id: postId)
+            }
+        }
+        .onDisappear {
+            // Cosign Formulary: Refresh feed when leaving post details screen
+            // Backend has tracked the view and updated preferences
+            // Trigger refresh after a short delay to ensure navigation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
             }
         }
     }
@@ -312,7 +331,7 @@ struct VideoPostView: View {
             // Video thumbnail or player
             if let thumbnailUrl = post.thumbnailUrl,
                !thumbnailUrl.isEmpty,
-               let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+               let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -329,7 +348,7 @@ struct VideoPostView: View {
                     }
                 }
             } else if let videoUrlString = post.mediaUrls.first,
-                      let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+                      let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                 VideoThumbnailView(videoUrl: videoUrl)
                     .frame(maxWidth: .infinity)
                     .frame(height: 250)
@@ -375,7 +394,7 @@ struct CarouselImageView: View {
         ZStack {
             // Show first image with carousel indicator
             if let firstImageUrl = post.mediaUrls.first,
-               let url = URL(string: firstImageUrl.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+               let url = URL(string: firstImageUrl.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -459,7 +478,7 @@ struct FullScreenImageViewer: View {
                 // Carousel view with TabView
                 TabView(selection: $currentIndex) {
                     ForEach(Array(post.mediaUrls.enumerated()), id: \.offset) { index, imageUrlString in
-                        if let imageUrl = URL(string: imageUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+                        if let imageUrl = URL(string: imageUrlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                             FullScreenImageView(imageUrl: imageUrl)
                                 .tag(index)
                         }
@@ -470,7 +489,7 @@ struct FullScreenImageViewer: View {
             } else {
                 // Single image view
                 if let imageUrlString = post.mediaUrls.first,
-                   let imageUrl = URL(string: imageUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+                   let imageUrl = URL(string: imageUrlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                     FullScreenImageView(imageUrl: imageUrl)
                 }
             }
@@ -659,17 +678,18 @@ struct CommentRow: View {
     let onDelete: () -> Void
     
     var isOwnComment: Bool {
-        guard let currentUserId = currentUserId,
-              let commentUserId = comment.userId?.id else {
+        guard let currentUserId = currentUserId else {
             return false
         }
+        let commentUserId = comment.authorId ?? comment.userId?.id ?? ""
         return currentUserId == commentUserId
     }
     
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             // Profile picture
-            if let profileUrl = comment.userId?.profilePictureUrl,
+            let userInfo = comment.userInfo
+            if let profileUrl = userInfo.profilePictureUrl,
                let url = URL(string: profileUrl) {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
@@ -683,14 +703,14 @@ struct CommentRow: View {
                     .fill(Color.gray.opacity(0.3))
                     .frame(width: 32, height: 32)
                     .overlay(
-                        Text(comment.userId?.displayName.prefix(1).uppercased() ?? "?")
+                        Text(userInfo.displayName.prefix(1).uppercased())
                             .font(.caption2)
                             .foregroundColor(.gray)
                     )
             }
             
             VStack(alignment: .leading, spacing: 3) {
-                Text(comment.userId?.displayName ?? "Unknown User")
+                Text(userInfo.displayName)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundColor(.black)
@@ -799,6 +819,12 @@ class PostDetailsViewModel: ObservableObject {
                 let updatedPost = try await PostsAPI.shared.likePost(postId: post.id)
                 self.post = updatedPost
                 LikesManager.shared.addLike(postId: post.id)
+            }
+            
+            // Cosign Formulary: Refresh feed after like/unlike to see updated personalized order
+            // Backend has learned preference for this post's food category
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(name: NSNotification.Name("RefreshPostsFeed"), object: nil)
             }
         } catch {
             // Revert optimistic update

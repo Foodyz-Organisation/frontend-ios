@@ -144,9 +144,12 @@ class ChatSocketManager: ObservableObject {
     }
     
     func sendMessage(conversationId: String, content: String, type: String = "text") {
+        // Filter bad words before sending via socket
+        let moderatedContent = BadWordsFilter.shared.moderate(content)
+        
         let payload: [String: Any] = [
             "conversationId": conversationId,
-            "content": content,
+            "content": moderatedContent,
             "type": type
         ]
         socket?.emit("send_message", payload)

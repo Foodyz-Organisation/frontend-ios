@@ -55,9 +55,33 @@ final class UserAPI {
         }
 
         guard (200...299).contains(http.statusCode) else {
+            // For 404 "User not found" errors, log at debug level (expected when checking participants)
+            if http.statusCode == 404 {
+                if let serverMessage = decodeServerMessage(from: data),
+                   serverMessage.contains("User not found") || serverMessage.contains("user not found") {
+                    // Silently handle expected "User not found" errors (e.g., for professionals/kitchens)
+                    // Only log if needed for debugging
+                    #if DEBUG
+                    print("ℹ️ [UserAPI] User not found (404) - this is expected for non-user participants")
+                    #endif
+                } else {
+                    // Log other 404 errors normally
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("❌ [UserAPI] Server Error (404): \(responseString)")
+                    }
+                }
+            } else {
+                // Enhanced logging for other errors
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("❌ [UserAPI] Server Error (\(http.statusCode)): \(responseString)")
+                }
+            }
+            
             if let serverMessage = decodeServerMessage(from: data) {
+                 // Try to throw clean message
                 throw ChatApiError.server(serverMessage)
             }
+             // Fallback
             throw ChatApiError.server("Server error: \(http.statusCode)")
         }
 

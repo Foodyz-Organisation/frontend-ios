@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Order Status Enum
-enum OrderStatus: String, Codable {
+enum OrderStatus: String, Codable, CaseIterable {
     case pending = "pending"
     case confirmed = "confirmed"
     case completed = "completed"
@@ -29,7 +29,7 @@ enum OrderStatus: String, Codable {
 }
 
 // MARK: - Order Type Enum
-enum OrderType: String, Codable {
+enum OrderType: String, Codable, CaseIterable {
     case eatIn = "eat-in"
     case takeaway = "takeaway"
     case delivery = "delivery"

@@ -8,12 +8,33 @@ class OrderRepository {
     private init() {}
     
     // MARK: - Create Order
+    // Returns CreateOrderResponse which handles both CASH (order only) and CARD (order + clientSecret + paymentIntentId)
     func createOrder(
         request: CreateOrderRequest,
-        completion: @escaping (Result<OrderResponse, APIError>) -> Void
+        completion: @escaping (Result<CreateOrderResponse, APIError>) -> Void
     ) {
-        let token = "mock_token" // TODO: Get from auth service
+        guard let token = TokenManager.shared.getAccessToken() else {
+            return completion(.failure(.unauthorized))
+        }
         api.createOrder(body: request, token: token, completion: completion)
+    }
+    
+    // MARK: - Confirm Payment
+    // Backend expects ONLY paymentIntentId and paymentMethodId
+    // DO NOT send raw card details - Stripe blocks this!
+    func confirmPayment(
+        paymentIntentId: String,
+        paymentMethodId: String,
+        completion: @escaping (Result<ConfirmPaymentResponse, APIError>) -> Void
+    ) {
+        guard let token = TokenManager.shared.getAccessToken() else {
+            return completion(.failure(.unauthorized))
+        }
+        let request = ConfirmPaymentRequest(
+            paymentIntentId: paymentIntentId,
+            paymentMethodId: paymentMethodId
+        )
+        api.confirmPayment(body: request, token: token, completion: completion)
     }
     
     // MARK: - Get Orders by User
@@ -21,7 +42,9 @@ class OrderRepository {
         userId: String,
         completion: @escaping (Result<[OrderResponse], APIError>) -> Void
     ) {
-        let token = "mock_token" // TODO: Get from auth service
+        guard let token = TokenManager.shared.getAccessToken() else {
+            return completion(.failure(.unauthorized))
+        }
         api.getOrdersByUser(userId: userId, token: token, completion: completion)
     }
     
@@ -48,7 +71,9 @@ class OrderRepository {
         orderId: String,
         completion: @escaping (Result<OrderResponse, APIError>) -> Void
     ) {
-        let token = "mock_token" // TODO: Get from auth service
+        guard let token = TokenManager.shared.getAccessToken() else {
+            return completion(.failure(.unauthorized))
+        }
         api.getOrderById(orderId: orderId, token: token, completion: completion)
     }
     
@@ -90,5 +115,23 @@ class OrderRepository {
         completion: @escaping (Result<OrderResponse, APIError>) -> Void
     ) {
         updateOrderStatus(orderId: orderId, status: .cancelled, token: token, completion: completion)
+    }
+    
+    // MARK: - Delete Order
+    func deleteOrder(
+        orderId: String,
+        token: String,
+        completion: @escaping (Result<Void, APIError>) -> Void
+    ) {
+        api.deleteOrder(orderId: orderId, token: token, completion: completion)
+    }
+    
+    // MARK: - Delete All Orders by Professional
+    func deleteAllOrdersByProfessional(
+        professionalId: String,
+        token: String,
+        completion: @escaping (Result<Void, APIError>) -> Void
+    ) {
+        api.deleteAllOrdersByProfessional(professionalId: professionalId, token: token, completion: completion)
     }
 }

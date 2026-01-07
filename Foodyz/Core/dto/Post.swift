@@ -80,7 +80,12 @@ struct Post: Identifiable {
         guard let url = displayImageUrl else { return nil }
         
         // Handle Android emulator IP (10.0.2.2) -> machine IP for real device
-        let iosFriendlyUrl = url.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")
+        let iosFriendlyUrl = url.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")
+        
+        // Pass through data URIs (Base64 images) untouched
+        if iosFriendlyUrl.hasPrefix("data:") {
+            return iosFriendlyUrl
+        }
         
         if iosFriendlyUrl.hasPrefix("http") {
             return iosFriendlyUrl
@@ -88,7 +93,7 @@ struct Post: Identifiable {
         
         // Remove leading slash if present
         let cleanPath = iosFriendlyUrl.hasPrefix("/") ? String(iosFriendlyUrl.dropFirst()) : iosFriendlyUrl
-        return "http://192.168.100.28:3000/\(cleanPath)"
+        return "http://127.0.0.1:3000/\(cleanPath)"
     }
 }
 
@@ -183,9 +188,15 @@ extension Post: Codable {
 struct Comment: Codable, Identifiable {
     let id: String
     let post: String
-    let userId: Owner?  // Populated user object
+    let userId: Owner?  // Legacy: Populated user object (for backward compatibility)
     let text: String
     let createdAt: String
+    
+    // New backend fields (matching CommentResponse structure)
+    let authorName: String?
+    let authorUsername: String?
+    let authorAvatar: String?
+    let authorId: String?
     
     enum CodingKeys: String, CodingKey {
         case id = "_id"
@@ -193,6 +204,10 @@ struct Comment: Codable, Identifiable {
         case userId
         case text
         case createdAt
+        case authorName
+        case authorUsername
+        case authorAvatar
+        case authorId
     }
     
     init(from decoder: Decoder) throws {
@@ -203,9 +218,49 @@ struct Comment: Codable, Identifiable {
         text = try container.decode(String.self, forKey: .text)
         createdAt = try container.decode(String.self, forKey: .createdAt)
         
-        // Decode userId as populated object
+        // Decode new backend fields
+        authorName = try? container.decode(String.self, forKey: .authorName)
+        authorUsername = try? container.decode(String.self, forKey: .authorUsername)
+        authorAvatar = try? container.decode(String.self, forKey: .authorAvatar)
+        authorId = try? container.decode(String.self, forKey: .authorId)
+        
+        // Try to decode userId as populated object (legacy support)
         userId = try? container.decode(Owner.self, forKey: .userId)
     }
+    
+    // Computed property to get user info (prefers new backend fields, falls back to userId)
+    var userInfo: CommentUserInfo {
+        if let authorId = authorId, let authorName = authorName {
+            return CommentUserInfo(
+                id: authorId,
+                displayName: authorName,
+                username: authorUsername,
+                profilePictureUrl: authorAvatar
+            )
+        } else if let userId = userId {
+            return CommentUserInfo(
+                id: userId.id,
+                displayName: userId.displayName,
+                username: nil,
+                profilePictureUrl: userId.profilePictureUrl
+            )
+        } else {
+            return CommentUserInfo(
+                id: "",
+                displayName: "Unknown User",
+                username: nil,
+                profilePictureUrl: nil
+            )
+        }
+    }
+}
+
+// MARK: - Comment User Info Helper
+struct CommentUserInfo {
+    let id: String
+    let displayName: String
+    let username: String?
+    let profilePictureUrl: String?
 }
 
 // MARK: - Create Comment DTO

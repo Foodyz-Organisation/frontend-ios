@@ -14,4 +14,5 @@ struct LoginResponse: Codable {
     let id: String
     let username: String?
     let avatarUrl: String?
+    let profilePictureUrl: String?
 }

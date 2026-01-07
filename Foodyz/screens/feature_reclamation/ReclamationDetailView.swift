@@ -5,6 +5,7 @@ import UIKit
 struct ReclamationDetailView: View {
     let reclamation: Reclamation
     var onBackClick: () -> Void = {}
+    @Environment(\.dismiss) private var dismiss
     
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
@@ -75,6 +76,7 @@ struct ReclamationDetailView: View {
         }
         .background(Color.white)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("Détails Réclamation")
@@ -82,7 +84,9 @@ struct ReclamationDetailView: View {
                     .fontWeight(.semibold)
             }
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: onBackClick) {
+                Button(action: {
+                    dismiss()
+                }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(ReclamationBrandColors.textPrimary)
                 }
@@ -180,12 +184,26 @@ struct PhotosGrid: View {
     let photoUrls: [String]
     
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        VStack(spacing: 16) {
+            if photoUrls.count == 1 {
+                // Une seule image : affichage centré et large
+                PhotoItemView(photoUrl: photoUrls[0], isSingle: true)
+            } else {
+                // Plusieurs images : grille adaptative
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ],
+                    spacing: 12
+                ) {
             ForEach(photoUrls, id: \.self) { photoUrl in
-                PhotoItemView(photoUrl: photoUrl)
+                        PhotoItemView(photoUrl: photoUrl, isSingle: false)
+                    }
+                }
             }
         }
-        .frame(maxHeight: 400)
+        .frame(maxWidth: .infinity)
         .onAppear {
             print("📸 PhotosGrid affiché avec \(photoUrls.count) URL(s)")
             for (index, url) in photoUrls.enumerated() {
@@ -198,39 +216,61 @@ struct PhotosGrid: View {
 // MARK: - Photo Item View
 struct PhotoItemView: View {
     let photoUrl: String
+    let isSingle: Bool
     @State private var imageData: Data?
     @State private var isLoading = true
     @State private var loadError: Error?
+    
+    init(photoUrl: String, isSingle: Bool = false) {
+        self.photoUrl = photoUrl
+        self.isSingle = isSingle
+    }
+    
+    private var imageHeight: CGFloat {
+        isSingle ? 300 : 200
+    }
     
     var body: some View {
         Group {
             if let data = imageData, let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
                     .resizable()
-                    .scaledToFill()
-                    .frame(height: 180)
-                    .clipped()
-                    .cornerRadius(16)
-                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 2)
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: imageHeight)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(20)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
                     .onAppear {
                         print("✅ Photo affichée avec succès: \(photoUrl)")
                     }
             } else if isLoading {
-                VStack {
+                VStack(spacing: 12) {
                     ProgressView()
+                        .scaleEffect(1.2)
                     Text("Chargement...")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
-                .frame(height: 180)
+                .frame(height: imageHeight)
                 .frame(maxWidth: .infinity)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.gray.opacity(0.1))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
             } else {
-                VStack {
+                VStack(spacing: 12) {
                     Image(systemName: "photo")
                         .font(.system(size: 40))
-                        .foregroundColor(.gray)
+                        .foregroundColor(.gray.opacity(0.6))
                     Text("Erreur de chargement")
                         .font(.caption)
                         .foregroundColor(.red)
@@ -239,11 +279,18 @@ struct PhotoItemView: View {
                         .foregroundColor(.gray)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 8)
                 }
-                .frame(height: 180)
+                .frame(height: imageHeight)
                 .frame(maxWidth: .infinity)
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.gray.opacity(0.1))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
             }
         }
         .onAppear {

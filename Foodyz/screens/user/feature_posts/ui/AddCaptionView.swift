@@ -37,6 +37,249 @@ struct AddCaptionView: View {
         return Color(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: 1.0)
     }
     
+    // MARK: - View Components
+    
+    @ViewBuilder
+    private var mediaPreviewSection: some View {
+        if !selectedMedia.isEmpty {
+            let hasVideo = selectedMedia.contains { $0.isVideo }
+            let imageCount = selectedMedia.filter { !$0.isVideo }.count
+            
+            if selectedMedia.count == 1, let firstMedia = selectedMedia.first, let thumbnail = firstMedia.thumbnail {
+                singleMediaPreview(media: firstMedia, thumbnail: thumbnail)
+            } else {
+                multipleMediaPreview(hasVideo: hasVideo, imageCount: imageCount)
+            }
+        }
+    }
+    
+    private func singleMediaPreview(media: SelectedMedia, thumbnail: UIImage) -> some View {
+        HStack(spacing: 12) {
+            Image(uiImage: thumbnail)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 80, height: 80)
+                .clipped()
+                .cornerRadius(12)
+                .overlay(
+                    Group {
+                        if media.isVideo {
+                            ZStack {
+                                Color.black.opacity(0.3)
+                                Image(systemName: "play.circle.fill")
+                                    .foregroundColor(.white)
+                                    .font(.title3)
+                            }
+                            .cornerRadius(12)
+                        }
+                    }
+                )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(media.isVideo ? "Video selected" : "Photo selected")
+                    .font(.headline)
+                    .foregroundColor(hexColor("#1F2937"))
+                
+                Text(formatBytes(media.data.count))
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 4)
+    }
+    
+    private func multipleMediaPreview(hasVideo: Bool, imageCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(imageCount > 1 ? "Carousel (\(imageCount) photos)" : "Media selected")
+                    .font(.headline)
+                    .foregroundColor(hexColor("#1F2937"))
+                Spacer()
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(selectedMedia.enumerated()), id: \.element.id) { index, media in
+                        if let thumbnail = media.thumbnail {
+                            Image(uiImage: thumbnail)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipped()
+                                .cornerRadius(12)
+                                .overlay(
+                                    Group {
+                                        if media.isVideo {
+                                            ZStack {
+                                                Color.black.opacity(0.3)
+                                                Image(systemName: "play.circle.fill")
+                                                    .foregroundColor(.white)
+                                                    .font(.caption)
+                                            }
+                                            .cornerRadius(12)
+                                        }
+                                    }
+                                )
+                                .overlay(
+                                    Text("\(index + 1)")
+                                        .font(.caption2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                        .padding(4)
+                                        .background(Color.black.opacity(0.6))
+                                        .clipShape(Circle()),
+                                    alignment: .topTrailing
+                                )
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            
+            Text("Total size: \(formatBytes(selectedMedia.reduce(0) { $0 + $1.data.count }))")
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 4)
+    }
+    
+    private var captionInputSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Write a caption")
+                .font(.headline)
+                .foregroundColor(hexColor("#1F2937"))
+            
+            TextEditor(text: $caption)
+                .frame(minHeight: 150)
+                .padding(12)
+                .background(Color.white)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+                .overlay(
+                    Group {
+                        if caption.isEmpty {
+                            Text("Share your thoughts...")
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding(.leading, 16)
+                                .padding(.top, 20)
+                                .allowsHitTesting(false)
+                        }
+                    },
+                    alignment: .topLeading
+                )
+            
+            HStack {
+                Spacer()
+                Text("\(caption.count) characters")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+        }
+    }
+    
+    private var foodTypePickerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Food Type *")
+                .font(.headline)
+                .foregroundColor(hexColor("#1F2937"))
+            
+            Button(action: {
+                showFoodTypePicker = true
+            }) {
+                HStack {
+                    Text(selectedFoodType ?? "Select a food type...")
+                        .foregroundColor(selectedFoodType == nil ? .gray : hexColor("#1F2937"))
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                        .foregroundColor(.gray)
+                }
+                .padding(12)
+                .background(Color.white)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(selectedFoodType == nil ? Color.red.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
+                )
+            }
+        }
+    }
+    
+    private var priceInputSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Price (TND)")
+                .font(.headline)
+                .foregroundColor(hexColor("#1F2937"))
+            
+            TextField("Ex: 30.0", text: $priceText)
+                .keyboardType(.decimalPad)
+                .padding(12)
+                .background(Color.white)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+        }
+    }
+    
+    private var preparationTimeInputSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Preparation Time (minutes)")
+                .font(.headline)
+                .foregroundColor(hexColor("#1F2937"))
+            
+            TextField("Ex: 15", text: $preparationTimeText)
+                .keyboardType(.numberPad)
+                .padding(12)
+                .background(Color.white)
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+        }
+    }
+    
+    private var loadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .tint(hexColor("#F59E0B"))
+                
+                Text("Uploading your post...")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                if uploadProgress > 0 {
+                    ProgressView(value: uploadProgress, total: 100)
+                        .tint(hexColor("#F59E0B"))
+                        .frame(width: 200)
+                }
+            }
+            .padding(30)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white)
+            )
+            .shadow(radius: 10)
+        }
+    }
+    
     var body: some View {
         ZStack {
             hexColor("#FFFBEA")
@@ -44,242 +287,18 @@ struct AddCaptionView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Media preview
-                    if !selectedMedia.isEmpty {
-                        let hasVideo = selectedMedia.contains { $0.isVideo }
-                        let imageCount = selectedMedia.filter { !$0.isVideo }.count
-                        
-                        if selectedMedia.count == 1, let firstMedia = selectedMedia.first, let thumbnail = firstMedia.thumbnail {
-                            // Single media preview
-                            HStack(spacing: 12) {
-                                Image(uiImage: thumbnail)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 80, height: 80)
-                                    .clipped()
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        Group {
-                                            if firstMedia.isVideo {
-                                                ZStack {
-                                                    Color.black.opacity(0.3)
-                                                    Image(systemName: "play.circle.fill")
-                                                        .foregroundColor(.white)
-                                                        .font(.title3)
-                                                }
-                                                .cornerRadius(12)
-                                            }
-                                        }
-                                    )
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(firstMedia.isVideo ? "Video selected" : "Photo selected")
-                                        .font(.headline)
-                                        .foregroundColor(hexColor("#1F2937"))
-                                    
-                                    Text(formatBytes(firstMedia.data.count))
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                                
-                                Spacer()
-                            }
-                            .padding()
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .shadow(color: Color.black.opacity(0.05), radius: 4)
-                        } else {
-                            // Multiple media preview (carousel)
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Text(imageCount > 1 ? "Carousel (\(imageCount) photos)" : "Media selected")
-                                        .font(.headline)
-                                        .foregroundColor(hexColor("#1F2937"))
-                                    Spacer()
-                                }
-                                
-                                // Grid preview of all images
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 12) {
-                                        ForEach(Array(selectedMedia.enumerated()), id: \.element.id) { index, media in
-                                            if let thumbnail = media.thumbnail {
-                                                Image(uiImage: thumbnail)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 80, height: 80)
-                                                    .clipped()
-                                                    .cornerRadius(12)
-                                                    .overlay(
-                                                        Group {
-                                                            if media.isVideo {
-                                                                ZStack {
-                                                                    Color.black.opacity(0.3)
-                                                                    Image(systemName: "play.circle.fill")
-                                                                        .foregroundColor(.white)
-                                                                        .font(.caption)
-                                                                }
-                                                                .cornerRadius(12)
-                                                            }
-                                                        }
-                                                    )
-                                                    .overlay(
-                                                        // Photo number indicator
-                                                        Text("\(index + 1)")
-                                                            .font(.caption2)
-                                                            .fontWeight(.bold)
-                                                            .foregroundColor(.white)
-                                                            .padding(4)
-                                                            .background(Color.black.opacity(0.6))
-                                                            .clipShape(Circle()),
-                                                        alignment: .topTrailing
-                                                    )
-                                            }
-                                        }
-                                    }
-                                    .padding(.horizontal, 4)
-                                }
-                                
-                                Text("Total size: \(formatBytes(selectedMedia.reduce(0) { $0 + $1.data.count }))")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            .padding()
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .shadow(color: Color.black.opacity(0.05), radius: 4)
-                        }
-                    }
-                    
-                    // Caption input
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Write a caption")
-                            .font(.headline)
-                            .foregroundColor(hexColor("#1F2937"))
-                        
-                        TextEditor(text: $caption)
-                            .frame(minHeight: 150)
-                            .padding(12)
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
-                            .overlay(
-                                Group {
-                                    if caption.isEmpty {
-                                        Text("Share your thoughts...")
-                                            .foregroundColor(.gray.opacity(0.5))
-                                            .padding(.leading, 16)
-                                            .padding(.top, 20)
-                                            .allowsHitTesting(false)
-                                    }
-                                },
-                                alignment: .topLeading
-                            )
-                    }
-                    
-                    // Character count
-                    HStack {
-                        Spacer()
-                        Text("\(caption.count) characters")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    // Food Type Picker (Required)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Food Type *")
-                            .font(.headline)
-                            .foregroundColor(hexColor("#1F2937"))
-                        
-                        Button(action: {
-                            showFoodTypePicker = true
-                        }) {
-                            HStack {
-                                Text(selectedFoodType ?? "Select a food type...")
-                                    .foregroundColor(selectedFoodType == nil ? .gray : hexColor("#1F2937"))
-                                Spacer()
-                                Image(systemName: "chevron.down")
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(12)
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(selectedFoodType == nil ? Color.red.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
-                            )
-                        }
-                    }
-                    
-                    // Price Input (Optional)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Price (TND)")
-                            .font(.headline)
-                            .foregroundColor(hexColor("#1F2937"))
-                        
-                        TextField("Ex: 30.0", text: $priceText)
-                            .keyboardType(.decimalPad)
-                            .padding(12)
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
-                    }
-                    
-                    // Preparation Time Input (Optional)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Preparation Time (minutes)")
-                            .font(.headline)
-                            .foregroundColor(hexColor("#1F2937"))
-                        
-                        TextField("Ex: 15", text: $preparationTimeText)
-                            .keyboardType(.numberPad)
-                            .padding(12)
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
-                    }
-                    
+                    mediaPreviewSection
+                    captionInputSection
+                    foodTypePickerSection
+                    priceInputSection
+                    preparationTimeInputSection
                     Spacer(minLength: 40)
                 }
                 .padding()
             }
             
-            // Loading overlay
             if isUploading {
-                ZStack {
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-                    
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .tint(hexColor("#F59E0B"))
-                        
-                        Text("Uploading your post...")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        if uploadProgress > 0 {
-                            ProgressView(value: uploadProgress, total: 100)
-                                .tint(hexColor("#F59E0B"))
-                                .frame(width: 200)
-                        }
-                    }
-                    .padding(30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white)
-                    )
-                    .shadow(radius: 10)
-                }
+                loadingOverlay
             }
         }
         .navigationTitle("New Post")
@@ -310,11 +329,18 @@ struct AddCaptionView: View {
         .sheet(isPresented: $showFoodTypePicker) {
             FoodTypePickerView(selectedFoodType: $selectedFoodType, foodTypes: foodTypes)
         }
-        .alert("Error", isPresented: $showError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage)
-        }
+        .overlay(
+            Group {
+                if showError {
+                    CustomErrorAlert(
+                        message: extractFoodRelatedMessage(from: errorMessage),
+                        onDismiss: {
+                            showError = false
+                        }
+                    )
+                }
+            }
+        )
         .onAppear {
             Task {
                 await loadFoodTypes()
@@ -476,6 +502,51 @@ struct AddCaptionView: View {
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
     }
+    
+    // MARK: - Extract Food Related Message
+    /// Extracts the food-related message from error response
+    private func extractFoodRelatedMessage(from errorString: String) -> String {
+        var cleanErrorString = errorString
+        
+        // Remove "Server Error: " prefix if present
+        if cleanErrorString.hasPrefix("Server Error: ") {
+            cleanErrorString = String(cleanErrorString.dropFirst("Server Error: ".count))
+        }
+        
+        // Try to parse JSON error response
+        if let jsonData = cleanErrorString.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+           let message = json["message"] as? String {
+            // Check if it's a food-related error
+            if message.lowercased().contains("food") || message.lowercased().contains("does not appear to contain") {
+                // Extract just the main message, removing file name and confidence if present
+                var cleanMessage = message
+                // Remove file name references like "file0.jpg"
+                cleanMessage = cleanMessage.replacingOccurrences(of: #"\"file\d+\.\w+\""#, with: "", options: .regularExpression)
+                // Remove confidence percentage if present
+                cleanMessage = cleanMessage.replacingOccurrences(of: #"\s*\(Confidence:\s*\d+\.\d+%\)"#, with: "", options: .regularExpression)
+                // Clean up extra spaces
+                cleanMessage = cleanMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+                cleanMessage = cleanMessage.replacingOccurrences(of: "  ", with: " ")
+                
+                // If message contains "does not appear to contain", simplify it
+                if cleanMessage.contains("does not appear to contain food-related content") {
+                    return "The uploaded image does not appear to contain food-related content. Please upload images of food items only."
+                }
+                
+                return cleanMessage.isEmpty ? "The uploaded image is not food-related. Please upload images of food items only." : cleanMessage
+            }
+            return message
+        }
+        
+        // If it's not JSON, check if it contains food-related keywords
+        if cleanErrorString.lowercased().contains("food") || cleanErrorString.lowercased().contains("does not appear to contain") {
+            return "The uploaded image is not food-related. Please upload images of food items only."
+        }
+        
+        // Return original message if no food-related content found
+        return cleanErrorString
+    }
 }
 
 // MARK: - Food Type Picker View
@@ -503,6 +574,81 @@ struct FoodTypePickerView: View {
             }
             .navigationTitle("Select Food Type")
             .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+// MARK: - Custom Error Alert
+struct CustomErrorAlert: View {
+    let message: String
+    let onDismiss: () -> Void
+    
+    // Helper to create color from hex string
+    private func hexColor(_ hex: String) -> Color {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r, g, b: UInt64
+        switch hex.count {
+        case 6:
+            r = (int >> 16) & 0xFF
+            g = (int >> 8) & 0xFF
+            b = int & 0xFF
+        default:
+            r = 1; g = 1; b = 1
+        }
+        return Color(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: 1.0)
+    }
+    
+    var body: some View {
+        ZStack {
+            // Background overlay
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onDismiss()
+                }
+            
+            // Alert card
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(hexColor("#F59E0B"))
+                    
+                    Text("Error")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(hexColor("#1F2937"))
+                }
+                .padding(.top, 24)
+                .padding(.bottom, 16)
+                
+                // Message
+                Text(message)
+                    .font(.system(size: 16))
+                    .foregroundColor(hexColor("#1F2937"))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                
+                // OK Button
+                Button(action: onDismiss) {
+                    Text("OK")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(hexColor("#F59E0B"))
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+            }
+            .frame(maxWidth: 320)
+            .background(Color.white)
+            .cornerRadius(20)
+            .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
         }
     }
 }

@@ -5,6 +5,9 @@ import UIKit
 @main
 @MainActor
 struct FoodyzApp: App {
+    // Integrate AppDelegate for Firebase
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     init() {
         // Configure navigation bar appearance globally
         let navBgColor = UIColor(red: 1.0, green: 0.984, blue: 0.918, alpha: 1.0) // #FFFBEA for app screens
@@ -23,6 +26,9 @@ struct FoodyzApp: App {
                 .environmentObject(SessionManager.shared)
                 .background(WindowBackgroundView())
                 .ignoresSafeArea(.all, edges: .all)
+                .onOpenURL { url in
+                    _ = GoogleSignInManager.shared.handleURL(url)
+                }
         }
     }
 }

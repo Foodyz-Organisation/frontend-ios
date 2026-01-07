@@ -30,4 +30,12 @@ class ProfessionalRepository {
     ) {
         api.searchByName(name: name, completion: completion)
     }
+    // MARK: - Update Professional
+    func updateProfessional(
+        id: String,
+        dto: [String: Any],
+        completion: @escaping (Result<ProfessionalDto, APIError>) -> Void
+    ) {
+        api.updateProfile(id: id, dto: dto, completion: completion)
+    }
 }

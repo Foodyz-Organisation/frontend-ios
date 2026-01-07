@@ -156,6 +156,7 @@ struct LoyaltyPointsScreen: View {
         }
         .navigationTitle("Points de Fidélité")
         .navigationBarTitleDisplayMode(.large)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button(action: {
@@ -163,14 +164,6 @@ struct LoyaltyPointsScreen: View {
                 }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(.primary)
-                }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    showDebugInfo.toggle()
-                }) {
-                    Image(systemName: showDebugInfo ? "eye.slash.fill" : "eye.fill")
-                        .foregroundColor(.blue)
                 }
             }
         }

@@ -97,4 +97,49 @@ class ProfessionalApi {
         
         executeRequest(url: url, responseType: [ProfessionalDto].self, completion: completion)
     }
+    // MARK: - Update Profile
+    func updateProfile(
+        id: String,
+        dto: [String: Any],
+        completion: @escaping (Result<ProfessionalDto, APIError>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseUrl)/\(id)") else {
+            return completion(.failure(.invalidURL))
+        }
+        
+        Task {
+            do {
+                print("🌐 ProfessionalApi Update Request:")
+                print("   URL: \(url.absoluteString)")
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "PATCH"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                
+                request.httpBody = try JSONSerialization.data(withJSONObject: dto)
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    return completion(.failure(.networkError(URLError(.unknown))))
+                }
+                
+                print("📥 ProfessionalApi Update Response: \(httpResponse.statusCode)")
+                
+                switch httpResponse.statusCode {
+                case 200...299:
+                    let decoded = try JSONDecoder().decode(ProfessionalDto.self, from: data)
+                    completion(.success(decoded))
+                case 401:
+                    completion(.failure(.unauthorized))
+                case 400:
+                    completion(.failure(.badRequest))
+                default:
+                    completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
+                }
+            } catch {
+                completion(.failure(.encodingError(error)))
+            }
+        }
+    }
 }

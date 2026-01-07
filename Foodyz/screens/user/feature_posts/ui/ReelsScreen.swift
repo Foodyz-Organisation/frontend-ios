@@ -5,6 +5,8 @@ import Combine
 struct ReelsScreen: View {
     @StateObject private var viewModel = ReelsViewModel()
     var onBack: () -> Void
+    var onNavigateToProfessional: ((String) -> Void)? = nil
+    var onFollowProfessional: ((String) -> Void)? = nil
     
     var body: some View {
         GeometryReader { proxy in
@@ -28,18 +30,30 @@ struct ReelsScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
             } else {
-                TabView {
-                    ForEach(viewModel.videoPosts) { post in
-                        ReelPlayerView(post: post)
-                            .frame(width: size.width, height: size.height)
-                            .rotationEffect(.init(degrees: -90)) // Rotate content back
-                            .ignoresSafeArea()
+                TabView(selection: $viewModel.currentIndex) {
+                    ForEach(Array(viewModel.videoPosts.enumerated()), id: \.element.id) { index, post in
+                        ReelPlayerView(
+                            post: post,
+                            isActive: viewModel.currentIndex == index,
+                            onNavigateToProfessional: onNavigateToProfessional,
+                            onFollowProfessional: onFollowProfessional
+                        )
+                        .frame(width: size.width, height: size.height)
+                        .rotationEffect(.init(degrees: -90)) // Rotate content back
+                        .ignoresSafeArea()
+                        .tag(index)
                     }
                 }
                 .rotationEffect(.init(degrees: 90)) // Rotate TabView to scroll vertically
                 .frame(width: size.height) // Swap width/height for rotation
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(width: size.width)
+                .onAppear {
+                    // Start playing the first video
+                    if viewModel.currentIndex == 0 {
+                        viewModel.currentIndex = 0
+                    }
+                }
             }
             
             // Back Button Overlay
@@ -71,44 +85,69 @@ struct ReelsScreen: View {
 
 struct ReelPlayerView: View {
     let post: Post
+    let isActive: Bool
+    var onNavigateToProfessional: ((String) -> Void)? = nil
+    var onFollowProfessional: ((String) -> Void)? = nil
+    
     @State private var player: AVPlayer?
+    @State private var playerItem: AVPlayerItem?
     @State private var isMuted = false
-    @State private var isPlaying = true
+    @State private var isPlaying = false
     @State private var isLiked: Bool
     @State private var currentLikeCount: Int
     @State private var showComments = false
+    @State private var isFollowing = false
+    @State private var playbackObserver: NSObjectProtocol?
+    @State private var readinessTimer: Timer?
     
-    init(post: Post) {
+    init(post: Post, isActive: Bool = true, onNavigateToProfessional: ((String) -> Void)? = nil, onFollowProfessional: ((String) -> Void)? = nil) {
         self.post = post
+        self.isActive = isActive
+        self.onNavigateToProfessional = onNavigateToProfessional
+        self.onFollowProfessional = onFollowProfessional
         // Initialize isLiked from LikesManager
         _isLiked = State(initialValue: LikesManager.shared.isLiked(postId: post.id))
         _currentLikeCount = State(initialValue: post.likeCount)
     }
     
+    // Check if owner is a professional
+    private var isProfessionalPost: Bool {
+        return post.ownerModel == .professional
+    }
+    
     var body: some View {
         ZStack {
-            if let videoUrl = post.fullDisplayImageUrl, let url = URL(string: videoUrl) {
+            // Use mediaUrls.first for video URL (not fullDisplayImageUrl which might be thumbnail)
+            if let videoUrlString = post.mediaUrls.first,
+               let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
                 CustomVideoPlayer(player: player)
                     .onAppear {
-                        if player == nil {
-                            player = AVPlayer(url: url)
-                        }
-                        player?.play()
-                        isPlaying = true
-                        
-                        // Loop video
-                        NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player?.currentItem, queue: .main) { _ in
-                            player?.seek(to: .zero)
-                            player?.play()
-                            isPlaying = true
+                        setupPlayer(url: videoUrl)
+                    }
+                    .onChange(of: isActive) { newValue in
+                        if newValue {
+                            // Video became active - start playing
+                            startPlaying()
+                        } else {
+                            // Video became inactive - pause
+                            pausePlaying()
                         }
                     }
                     .onDisappear {
-                        player?.pause()
-                        isPlaying = false
+                        cleanupPlayer()
                     }
             } else {
                 Color.black
+                    .overlay(
+                        VStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.title)
+                                .foregroundColor(.white)
+                            Text("Video URL not available")
+                                .foregroundColor(.white)
+                                .font(.caption)
+                        }
+                    )
             }
             
             // Overlay Controls
@@ -118,7 +157,7 @@ struct ReelPlayerView: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 10) {
                         // User Info
-                        HStack {
+                        HStack(spacing: 8) {
                             if let profileUrl = post.owner?.profilePictureUrl, let url = URL(string: profileUrl) {
                                 AsyncImage(url: url) { image in
                                     image.resizable().scaledToFill()
@@ -138,18 +177,39 @@ struct ReelPlayerView: View {
                                 .font(.headline)
                                 .foregroundColor(.white)
                             
-                            Button("Follow") {
-                                // Follow action
+                            // Follow Button
+                            Button(action: {
+                                if let ownerId = post.owner?.id {
+                                    isFollowing.toggle()
+                                    onFollowProfessional?(ownerId)
+                                }
+                            }) {
+                                Text(isFollowing ? "Following" : "Follow")
+                                    .font(.caption.bold())
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(isFollowing ? Color.white.opacity(0.3) : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.white, lineWidth: 1)
+                                    )
+                                    .foregroundColor(.white)
                             }
-                            .font(.caption.bold())
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.clear)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white, lineWidth: 1)
-                            )
-                            .foregroundColor(.white)
+                            
+                            // Order Button (only for professional posts)
+                            if isProfessionalPost, let ownerId = post.owner?.id {
+                                Button(action: {
+                                    onNavigateToProfessional?(ownerId)
+                                }) {
+                                    Text("Order")
+                                        .font(.caption.bold())
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color(hex: "#F59E0B"))
+                                        .foregroundColor(.white)
+                                        .cornerRadius(10)
+                                }
+                            }
                         }
                         
                         // Caption
@@ -232,11 +292,155 @@ struct ReelPlayerView: View {
                 isPlaying = true
             }
         }
-        .sheet(isPresented: $showComments) {
-            NavigationStack {
-                ReelCommentsView(postId: post.id)
+        .overlay {
+            if showComments {
+                // Background overlay to dim the video
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation {
+                            showComments = false
+                        }
+                    }
+                
+                // Comments Drawer
+                VStack {
+                    Spacer()
+                    CommentsDrawer(
+                        postId: post.id,
+                        postCaption: post.caption,
+                        likeCount: currentLikeCount,
+                        commentCount: post.commentCount,
+                        isPresented: $showComments
+                    )
+                    .frame(maxHeight: UIScreen.main.bounds.height * 0.85)
+                }
+                .transition(.move(edge: .bottom))
+                .zIndex(1000)
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: showComments)
+    }
+    
+    // MARK: - Player Management
+    
+    private func setupPlayer(url: URL) {
+        // Clean up existing player if any
+        cleanupPlayer()
+        
+        print("🎬 Setting up player for video: \(post.id)")
+        print("📹 Video URL: \(url.absoluteString)")
+        
+        // Create new player item
+        playerItem = AVPlayerItem(url: url)
+        player = AVPlayer(playerItem: playerItem)
+        
+        // Configure player for automatic playback
+        player?.automaticallyWaitsToMinimizeStalling = false
+        player?.allowsExternalPlayback = false
+        
+        // Set up audio session for playback
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback, options: [])
+            try AVAudioSession.sharedInstance().setActive(true)
+            print("🔊 Audio session configured")
+        } catch {
+            print("❌ Failed to set up audio session: \(error)")
+        }
+        
+        // Set up loop notification
+        let postId = post.id
+        playbackObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { notification in
+            if let item = notification.object as? AVPlayerItem,
+               let player = player {
+                player.seek(to: .zero)
+                player.play()
+                print("🔄 Video looped: \(postId)")
+            }
+        }
+        
+        // Start playing if this view is active
+        if isActive {
+            startPlaying()
+        }
+    }
+    
+    private func startPlaying() {
+        guard let currentPlayer = player, let currentPlayerItem = playerItem else {
+            print("⚠️ Cannot start playing: player is nil")
+            return
+        }
+        
+        print("▶️ Attempting to start playback for: \(post.id)")
+        
+        // Check if player item is ready
+        if currentPlayerItem.status == .readyToPlay {
+            currentPlayer.play()
+            DispatchQueue.main.async {
+                isPlaying = true
+            }
+            print("✅ Started playing immediately: \(post.id)")
+        } else {
+            // Poll for readiness (simpler than KVO for SwiftUI)
+            let postId = post.id
+            let maxAttempts = 20 // 2 seconds max wait
+            var attempts = 0
+            
+            // Capture player and playerItem references (they're already unwrapped from guard above)
+            let capturedPlayer = currentPlayer
+            let capturedPlayerItem = currentPlayerItem
+            
+            readinessTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+                attempts += 1
+                
+                if capturedPlayerItem.status == AVPlayerItem.Status.readyToPlay {
+                    capturedPlayer.play()
+                    print("✅ Started playing after \(attempts * 100)ms: \(postId)")
+                    timer.invalidate()
+                    
+                    // Update isPlaying state on main thread
+                    DispatchQueue.main.async {
+                        isPlaying = true
+                    }
+                } else if attempts >= maxAttempts || capturedPlayerItem.status == AVPlayerItem.Status.failed {
+                    print("❌ Player failed to become ready after \(attempts * 100)ms")
+                    timer.invalidate()
+                }
+            }
+        }
+    }
+    
+    private func pausePlaying() {
+        player?.pause()
+        isPlaying = false
+        print("⏸️ Paused video: \(post.id)")
+    }
+    
+    private func cleanupPlayer() {
+        print("🧹 Cleaning up player for: \(post.id)")
+        
+        // Invalidate timer
+        readinessTimer?.invalidate()
+        readinessTimer = nil
+        
+        // Remove observers
+        if let playerItem = playerItem {
+            NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: playerItem)
+        }
+        
+        if let observer = playbackObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playbackObserver = nil
+        }
+        
+        player?.pause()
+        player = nil
+        playerItem = nil
+        isPlaying = false
     }
     
     // MARK: - Actions
@@ -332,6 +536,11 @@ struct CustomVideoPlayer: UIViewControllerRepresentable {
 class ReelsViewModel: ObservableObject {
     @Published var videoPosts: [Post] = []
     @Published var isLoading = false
+    @Published var currentIndex: Int = 0 {
+        didSet {
+            print("📹 Current reel index changed to: \(currentIndex)")
+        }
+    }
     
     func fetchReels() async {
         isLoading = true
@@ -339,8 +548,9 @@ class ReelsViewModel: ObservableObject {
             let allPosts = try await PostsAPI.shared.getAllPosts()
             // Filter for videos only
             videoPosts = allPosts.filter { $0.isVideo }
+            print("✅ Loaded \(videoPosts.count) video reels")
         } catch {
-            print("Error fetching reels: \(error)")
+            print("❌ Error fetching reels: \(error)")
         }
         isLoading = false
     }

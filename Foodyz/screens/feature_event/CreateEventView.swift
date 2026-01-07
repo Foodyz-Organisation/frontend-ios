@@ -133,12 +133,9 @@ struct CreateEventView: View {
                         onAddImage: { viewModel.showImagePicker = true },
                         onRemoveImage: { 
                             viewModel.imageState = ImagePicker.ImageState.empty
+                            viewModel.selectedPhotoItem = nil
+                            viewModel.selectedUIImage = nil
                         }
-                    )
-                    .photosPicker(
-                        isPresented: $viewModel.showImagePicker,
-                        selection: $viewModel.selectedPhotoItem,
-                        matching: .images
                     )
                     
                     CreateButton(
@@ -185,11 +182,18 @@ struct CreateEventView: View {
                     .foregroundColor(BrandColors.TextPrimary)
             }
         }
+        .photosPicker(
+            isPresented: $viewModel.showImagePicker,
+            selection: $viewModel.selectedPhotoItem,
+            matching: .images
+        )
         .onChange(of: viewModel.selectedPhotoItem) { oldValue, newValue in
             guard let newValue = newValue else { return }
             
             Task {
-                viewModel.imageState = .loading
+                await MainActor.run {
+                    viewModel.imageState = .loading
+                }
                 
                 do {
                     if let data = try? await newValue.loadTransferable(type: Data.self),
@@ -197,15 +201,19 @@ struct CreateEventView: View {
                         let image = Image(uiImage: uiImage)
                         await MainActor.run {
                             viewModel.imageState = .success(image)
+                            viewModel.selectedUIImage = uiImage // Stocker l'UIImage pour la conversion
+                            viewModel.objectWillChange.send()
                         }
                     } else {
                         await MainActor.run {
                             viewModel.imageState = .failure(NSError(domain: "ImagePicker", code: -1, userInfo: [NSLocalizedDescriptionKey: "Impossible de charger l'image"]))
+                            viewModel.selectedUIImage = nil
                         }
                     }
                 } catch {
                     await MainActor.run {
                         viewModel.imageState = .failure(error)
+                        viewModel.selectedUIImage = nil
                     }
                 }
             }
@@ -342,10 +350,24 @@ private struct ImageSection: View {
             ProgressView().frame(height: 200).frame(maxWidth: .infinity).background(Color.gray.opacity(0.1)).cornerRadius(16)
         case .success(let image):
             ZStack(alignment: .topTrailing) {
-                image.resizable().scaledToFill().frame(height: 200).clipped().cornerRadius(16)
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(height: 200)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .cornerRadius(16)
+                    .background(BrandColors.Cream100)
+                
                 Button(action: onRemoveImage) {
-                    Image(systemName: "xmark").foregroundColor(.white).padding(8).background(Color.black.opacity(0.6)).clipShape(RoundedRectangle(cornerRadius: 8))
-                }.padding(8)
+                    Image(systemName: "xmark")
+                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .bold))
+                        .padding(8)
+                        .background(Color.black.opacity(0.6))
+                        .clipShape(Circle())
+                }
+                .padding(8)
             }
         case .failure:
             VStack {
@@ -393,6 +415,7 @@ class CreateEventViewModel: ObservableObject {
     @Published var imageState: ImagePicker.ImageState = .empty
     @Published var showImagePicker = false
     @Published var selectedPhotoItem: PhotosPickerItem? = nil
+    @Published var selectedUIImage: UIImage? = nil // Stocker l'UIImage pour la conversion en base64
     @Published var showError = false
     @Published var errorMessage = ""
     @Published var isCreating = false
@@ -452,12 +475,25 @@ class CreateEventViewModel: ObservableObject {
             lieuString = lieu.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
+        // Convertir l'image en base64 si disponible
+        var imageBase64: String? = nil
+        if let uiImage = selectedUIImage {
+            // Convertir UIImage en JPEG data avec compression
+            if let imageData = uiImage.jpegData(compressionQuality: 0.8) {
+                // Convertir en base64 string avec préfixe data URI
+                imageBase64 = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
+                print("📸 Image convertie en base64 - Taille: \(imageData.count) bytes, Base64: \(imageBase64?.count ?? 0) caractères")
+            } else {
+                print("❌ Erreur: Impossible de convertir l'image en JPEG")
+            }
+        }
+
         return Event(
             nom: nom,
             description: description,
             dateDebut: formattedDateDebut,
             dateFin: formattedDateFin,
-            image: nil,
+            image: imageBase64,
             lieu: lieuString,
             categorie: categorie,
             statut: eventStatus

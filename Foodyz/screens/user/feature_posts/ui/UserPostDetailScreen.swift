@@ -235,7 +235,7 @@ struct UserPostDetailCard: View {
     private var videoThumbnailView: some View {
         if let thumbnailUrl = post.thumbnailUrl,
            !thumbnailUrl.isEmpty,
-           let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+           let url = URL(string: thumbnailUrl.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
@@ -256,7 +256,7 @@ struct UserPostDetailCard: View {
     @ViewBuilder
     private var clientGeneratedVideoThumbnail: some View {
         if let videoUrlString = post.mediaUrls.first,
-           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "192.168.100.28")) {
+           let videoUrl = URL(string: videoUrlString.replacingOccurrences(of: "10.0.2.2", with: "127.0.0.1")) {
             VideoThumbnailView(videoUrl: videoUrl)
         } else {
             Rectangle()

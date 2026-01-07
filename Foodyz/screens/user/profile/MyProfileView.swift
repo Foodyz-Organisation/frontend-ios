@@ -40,7 +40,8 @@ struct MyProfileView: View {
             }
         }
         .task {
-            await viewModel.loadProfile(force: false)
+            // Force reload to ensure fresh data if returning from Edit Profile
+            await viewModel.loadProfile(force: true)
         }
         .onChange(of: avatarItem) { newItem in
             Task { await processAvatarSelection(newItem) }
@@ -70,7 +71,10 @@ struct MyProfileView: View {
         let profile = viewModel.profile
         let fallbackName = profile?.username ?? (session.displayName ?? "Foodies Member")
         let fallbackEmail = profile?.email ?? session.email
-        let avatarURL = profile?.avatarUrl ?? session.avatarURL
+        
+        // Use sanitizeURL and fallback logic
+        let rawUrl = profile?.avatarUrl ?? profile?.profilePictureUrl ?? session.avatarURL
+        let avatarURL = SessionManager.sanitizeURL(rawUrl)
 
         return VStack(spacing: 16) {
             PhotosPicker(selection: $avatarItem, matching: .images, photoLibrary: .shared()) {
@@ -128,15 +132,46 @@ struct MyProfileView: View {
         guard let item else { return }
         do {
             if let data = try await item.loadTransferable(type: Data.self),
-               let image = UIImage(data: data),
-               let jpeg = image.jpegData(compressionQuality: 0.85) {
-                await viewModel.updateAvatar(with: jpeg)
+               let image = UIImage(data: data) {
+                // Resize image to max 512x512 to avoid payload too large (413)
+                let resizedImage = resizeImage(image: image, targetSize: CGSize(width: 512, height: 512))
+                
+                if let jpeg = resizedImage.jpegData(compressionQuality: 0.7) {
+                     await viewModel.updateAvatar(with: jpeg)
+                }
             }
         } catch {
             await MainActor.run {
                 viewModel.errorMessage = "Unable to load selected photo."
             }
         }
+    }
+    
+    // Helper to resize image
+    private func resizeImage(image: UIImage, targetSize: CGSize) -> UIImage {
+        let size = image.size
+        
+        let widthRatio  = targetSize.width  / size.width
+        let heightRatio = targetSize.height / size.height
+        
+        // Figure out what our orientation is, and use that to form the rectangle
+        var newSize: CGSize
+        if(widthRatio > heightRatio) {
+            newSize = CGSize(width: size.width * heightRatio, height: size.height * heightRatio)
+        } else {
+            newSize = CGSize(width: size.width * widthRatio,  height: size.height * widthRatio)
+        }
+        
+        // This is the rect that we've calculated out and this is what is actually used below
+        let rect = CGRect(x: 0, y: 0, width: newSize.width, height: newSize.height)
+        
+        // Actually do the resizing to the rect using the ImageContext stuff
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        image.draw(in: rect)
+        let newImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        
+        return newImage ?? image
     }
 }
 
@@ -180,7 +215,11 @@ final class MyProfileViewModel: ObservableObject {
         do {
             let data = try await userAPI.fetchProfile(userId: userId)
             profile = data
-            SessionManager.shared.updateProfileMetadata(name: data.username, avatarURL: data.avatarUrl)
+            // Use fallback logic for session metadata so drawer updates correctly
+            let finalUrl = data.avatarUrl ?? data.profilePictureUrl
+            // Don't need to re-sanitize here as SessionManager does it inside updateProfileMetadata
+            // But SessionManager expects raw URL to sanitize
+            SessionManager.shared.updateProfileMetadata(name: data.username, avatarURL: finalUrl)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -196,13 +235,17 @@ final class MyProfileViewModel: ObservableObject {
                 username: profile?.username,
                 phone: profile?.phone,
                 address: profile?.address,
-                avatarUrl: data.dataURI()
+                profilePictureUrl: data.dataURI() // Matches updated struct
             )
             let updated = try await userAPI.updateProfile(userId: userId, payload: payload)
             profile = updated
-            SessionManager.shared.updateProfileMetadata(name: updated.username, avatarURL: updated.avatarUrl)
+            
+            // Fallback for immediate UI update
+            let finalUrl = updated.avatarUrl ?? updated.profilePictureUrl
+            SessionManager.shared.updateProfileMetadata(name: updated.username, avatarURL: finalUrl)
         } catch {
             errorMessage = error.localizedDescription
+            print("Avatar upload error: \(error)")
         }
     }
 }

@@ -113,7 +113,8 @@ final class ChatAPI {
     }
 
     private func fetchAccessToken() async throws -> String {
-        let token = await MainActor.run { SessionManager.shared.accessToken }
+        // Use TokenManager instead of SessionManager for consistency with the rest of the app
+        let token = TokenManager.shared.getAccessToken()
         guard let token else { throw ChatApiError.unauthenticated }
         return token
     }
@@ -135,6 +136,11 @@ final class ChatAPI {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
+            // Enhanced error logging for debugging
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("❌ [ChatAPI] Decoding Error: \(error)")
+                print("❌ [ChatAPI] Response: \(responseString.prefix(500))")
+            }
             throw ChatApiError.decoding
         }
     }

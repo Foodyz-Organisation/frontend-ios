@@ -110,9 +110,10 @@ struct ReclamationListView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("Mes Réclamations")
+                Text(viewModel.isProfessional ? "Réclamations du Restaurant" : "Mes Réclamations")
                     .foregroundColor(ReclamationBrandColors.textPrimary)
                     .fontWeight(.semibold)
             }
@@ -143,6 +144,13 @@ class ReclamationListViewModel: ObservableObject {
     @Published var reclamations: [Reclamation] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
+    @Published var isProfessional: Bool = false
+    
+    init() {
+        // Initialiser isProfessional dès l'initialisation
+        let userRole = TokenManager.shared.getUserRole()
+        isProfessional = userRole?.lowercased() == "professional"
+    }
     
     func loadReclamations() async {
         isLoading = true
@@ -150,7 +158,7 @@ class ReclamationListViewModel: ObservableObject {
         
         // Détecter le rôle de l'utilisateur connecté
         let userRole = TokenManager.shared.getUserRole()
-        let isProfessional = userRole?.lowercased() == "professional"
+        isProfessional = userRole?.lowercased() == "professional"
         
         print("🔍 Chargement des réclamations - Rôle: \(userRole ?? "unknown"), Professionnel: \(isProfessional)")
         
@@ -166,7 +174,7 @@ class ReclamationListViewModel: ObservableObject {
                 
                 switch result {
                 case .success(let reclamationDTOs):
-                    print("✅ \(reclamationDTOs.count) réclamation(s) chargée(s) pour \(isProfessional ? "le restaurant" : "l'utilisateur")")
+                    print("✅ \(reclamationDTOs.count) réclamation(s) chargée(s) pour \(self.isProfessional ? "le restaurant" : "l'utilisateur")")
                     // Convert ReclamationResponseDTO to Reclamation
                     self.reclamations = reclamationDTOs.map { dto in
                         // Map status from backend string to ReclamationStatus
@@ -223,9 +231,10 @@ class ReclamationListViewModel: ObservableObject {
                         print("📸 Total URLs de photos: \(photoUrls.count)")
                         print("📸 URLs finales: \(photoUrls)")
                         
+                        // Use commandeConcernee directly as order name (backend should send order name, not ID)
                         return Reclamation(
                             id: dto._id,
-                            orderNumber: "Commande #\(dto.commandeConcernee.prefix(8))",
+                            orderNumber: dto.commandeConcernee,
                             complaintType: dto.complaintType,
                             description: dto.description,
                             photoUrls: photoUrls,

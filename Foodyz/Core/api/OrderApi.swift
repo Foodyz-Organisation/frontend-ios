@@ -77,16 +77,32 @@ class OrderApi {
     }
     
     // MARK: - POST Create Order
+    // Backend returns different formats:
+    // - CASH: returns OrderResponse directly
+    // - CARD: returns { order: OrderResponse, clientSecret: string, paymentIntentId: string }
     func createOrder(
         body: CreateOrderRequest,
         token: String,
-        completion: @escaping (Result<OrderResponse, APIError>) -> Void
+        completion: @escaping (Result<CreateOrderResponse, APIError>) -> Void
     ) {
         guard let url = URL(string: baseUrl) else {
             return completion(.failure(.invalidURL))
         }
         
-        executeRequest(url: url, method: "POST", body: body, token: token, responseType: OrderResponse.self, completion: completion)
+        executeRequest(url: url, method: "POST", body: body, token: token, responseType: CreateOrderResponse.self, completion: completion)
+    }
+    
+    // MARK: - POST Confirm Payment
+    func confirmPayment(
+        body: ConfirmPaymentRequest,
+        token: String,
+        completion: @escaping (Result<ConfirmPaymentResponse, APIError>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseUrl)/payment/confirm") else {
+            return completion(.failure(.invalidURL))
+        }
+        
+        executeRequest(url: url, method: "POST", body: body, token: token, responseType: ConfirmPaymentResponse.self, completion: completion)
     }
     
     // MARK: - GET Orders by User
@@ -153,5 +169,113 @@ class OrderApi {
         }
         
         executeRequest(url: url, method: "PATCH", body: body, token: token, responseType: OrderResponse.self, completion: completion)
+    }
+    
+    // MARK: - DELETE Order
+    func deleteOrder(
+        orderId: String,
+        token: String,
+        completion: @escaping (Result<Void, APIError>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseUrl)/\(orderId)") else {
+            return completion(.failure(.invalidURL))
+        }
+        
+        Task {
+            do {
+                print("🌐 OrderApi Request:")
+                print("   URL: \(url.absoluteString)")
+                print("   Method: DELETE")
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "DELETE"
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("❌ Not an HTTP response")
+                    return completion(.failure(.networkError(URLError(.unknown))))
+                }
+                
+                print("📥 OrderApi Response:")
+                print("   Status Code: \(httpResponse.statusCode)")
+                
+                switch httpResponse.statusCode {
+                case 200...299:
+                    print("✅ Order deleted successfully")
+                    completion(.success(()))
+                case 401:
+                    print("❌ Unauthorized (401)")
+                    completion(.failure(.unauthorized))
+                case 400:
+                    print("❌ Bad Request (400)")
+                    completion(.failure(.badRequest))
+                default:
+                    print("❌ Bad server response: \(httpResponse.statusCode)")
+                    completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
+                }
+            } catch let urlError as URLError {
+                print("❌ Network error: \(urlError.localizedDescription)")
+                completion(.failure(.networkError(urlError)))
+            } catch {
+                print("❌ Unknown error: \(error)")
+                completion(.failure(.decodingError(error)))
+            }
+        }
+    }
+    
+    // MARK: - DELETE All Orders by Professional
+    func deleteAllOrdersByProfessional(
+        professionalId: String,
+        token: String,
+        completion: @escaping (Result<Void, APIError>) -> Void
+    ) {
+        guard let url = URL(string: "\(baseUrl)/professional/\(professionalId)") else {
+            return completion(.failure(.invalidURL))
+        }
+        
+        Task {
+            do {
+                print("🌐 OrderApi Request:")
+                print("   URL: \(url.absoluteString)")
+                print("   Method: DELETE")
+                
+                var request = URLRequest(url: url)
+                request.httpMethod = "DELETE"
+                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    print("❌ Not an HTTP response")
+                    return completion(.failure(.networkError(URLError(.unknown))))
+                }
+                
+                print("📥 OrderApi Response:")
+                print("   Status Code: \(httpResponse.statusCode)")
+                
+                switch httpResponse.statusCode {
+                case 200...299:
+                    print("✅ All completed orders deleted successfully")
+                    completion(.success(()))
+                case 401:
+                    print("❌ Unauthorized (401)")
+                    completion(.failure(.unauthorized))
+                case 400:
+                    print("❌ Bad Request (400)")
+                    completion(.failure(.badRequest))
+                default:
+                    print("❌ Bad server response: \(httpResponse.statusCode)")
+                    completion(.failure(.badServerResponse(statusCode: httpResponse.statusCode)))
+                }
+            } catch let urlError as URLError {
+                print("❌ Network error: \(urlError.localizedDescription)")
+                completion(.failure(.networkError(urlError)))
+            } catch {
+                print("❌ Unknown error: \(error)")
+                completion(.failure(.decodingError(error)))
+            }
+        }
     }
 }
